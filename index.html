@@ -1,0 +1,1601 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Beta Reader</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --accent:#6d3bd6;
+    --bg:#faf8ff; --surface:#ffffff; --surface-2:#f3eefc; --border:#e6dcf5;
+    --text:#1c1726; --muted:#6b6480;
+    --good:#128a5b; --bad:#c0392b; --warn:#b57614;
+    --radius:12px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14111c; --surface:#1e1a29; --surface-2:#262035; --border:#332b47;
+      --text:#efeaf7; --muted:#9d95b3;
+      --good:#3ddc9a; --bad:#ff7a6b; --warn:#f0b429;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#faf8ff; --surface:#ffffff; --surface-2:#f3eefc; --border:#e6dcf5;
+    --text:#1c1726; --muted:#6b6480;
+    --good:#128a5b; --bad:#c0392b; --warn:#b57614;
+  }
+  :root[data-theme="dark"]{
+    --bg:#14111c; --surface:#1e1a29; --surface-2:#262035; --border:#332b47;
+    --text:#efeaf7; --muted:#9d95b3;
+    --good:#3ddc9a; --bad:#ff7a6b; --warn:#f0b429;
+  }
+
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px; line-height:1.5;
+    min-height:100vh; min-height:100dvh;
+    display:flex; flex-direction:column;
+    max-width:680px; margin:0 auto;
+    -webkit-text-size-adjust:100%;
+  }
+
+  .screen{display:none; flex-direction:column; flex:1; padding:18px 18px calc(18px + env(safe-area-inset-bottom));}
+  .screen.active{display:flex}
+
+  h1{font-size:1.25rem; font-weight:700; line-height:1.25}
+  h2{font-size:.95rem; font-weight:600}
+  .sub{font-size:.82rem; color:var(--muted)}
+  .muted{color:var(--muted)}
+  .tiny{font-size:.75rem}
+  a{color:var(--accent)}
+
+  .topbar{display:flex; align-items:center; gap:10px; margin-bottom:16px}
+  .topbar h1{flex:1; min-width:0}
+  .spacer{flex:1}
+
+  label{display:block; font-size:.72rem; color:var(--muted); margin:16px 0 6px;
+        text-transform:uppercase; letter-spacing:.06em; font-weight:600}
+  input,select,textarea{
+    width:100%; background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); color:var(--text); font-size:1rem; padding:12px 14px;
+    font-family:inherit; -webkit-appearance:none; appearance:none;
+  }
+  select{background-image:none}
+  textarea{resize:vertical; min-height:80px; line-height:1.45}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:transparent}
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    background:var(--accent); color:#fff; border:none; border-radius:var(--radius);
+    font-size:.95rem; font-weight:600; padding:13px 18px; cursor:pointer;
+    font-family:inherit; line-height:1.2; text-align:center;
+  }
+  .btn:active{opacity:.85}
+  .btn[disabled]{opacity:.5; cursor:not-allowed}
+  .btn.ghost{background:transparent; color:var(--text); border:1px solid var(--border)}
+  .btn.sm{padding:9px 13px; font-size:.85rem}
+  .btn.wide{width:100%}
+  .btn.icon{padding:9px 11px; background:transparent; color:var(--text); border:1px solid var(--border); font-size:1rem}
+  .btn.rec{background:var(--bad)}
+  .row{display:flex; gap:8px; flex-wrap:wrap}
+  .row.tight{gap:6px}
+
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px; margin-bottom:10px;
+  }
+  .card.tap{cursor:pointer}
+  .card.tap:active{background:var(--surface-2)}
+
+  .list{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0}
+
+  .empty{text-align:center; padding:44px 16px; color:var(--muted); font-size:.9rem}
+
+  /* ── player ─────────────────────────── */
+  .prog-track{height:4px; background:var(--surface-2); border-radius:4px; overflow:hidden; margin-bottom:14px}
+  .prog-fill{height:100%; background:var(--accent); width:0; transition:width .25s}
+
+  .stage{
+    flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; margin-bottom:14px;
+  }
+  .unit{
+    padding:11px 12px; border-radius:10px; margin-bottom:6px; cursor:pointer;
+    color:var(--muted); font-size:.95rem; line-height:1.55;
+    border-left:3px solid transparent;
+  }
+  .unit.h{font-weight:700; color:var(--text); font-size:1rem; letter-spacing:.01em; margin-top:14px}
+  .unit.active{background:var(--surface-2); color:var(--text); border-left-color:var(--accent)}
+  .unit.noted{border-left-color:var(--warn)}
+  .unit.noted.active{border-left-color:var(--accent); box-shadow:inset 3px 0 0 var(--warn)}
+
+  .controls{display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap}
+  .speed{display:flex; align-items:center; gap:9px; flex:1; min-width:170px}
+  .speed input[type=range]{flex:1; -webkit-appearance:none; appearance:none; height:4px; padding:0;
+    background:var(--surface-2); border:none; border-radius:4px}
+  .speed input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:20px; height:20px;
+    border-radius:50%; background:var(--accent); cursor:pointer}
+  .speed input[type=range]::-moz-range-thumb{width:20px; height:20px; border:none;
+    border-radius:50%; background:var(--accent); cursor:pointer}
+  .speed-val{font-size:.8rem; color:var(--muted); min-width:38px; text-align:right; font-variant-numeric:tabular-nums}
+
+  .status{font-size:.8rem; color:var(--muted); min-height:1.3em; margin-top:8px}
+  .status.ok{color:var(--good)} .status.err{color:var(--bad)} .status.warn{color:var(--warn)}
+
+  .badge{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+    border-radius:999px; font-size:.78rem; font-weight:600; padding:7px 13px; cursor:pointer;
+  }
+
+  /* ── note panel ─────────────────────── */
+  #backdrop{position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; z-index:40}
+  #backdrop.on{display:block}
+  .panel{
+    position:fixed; left:0; right:0; bottom:0; z-index:41;
+    background:var(--surface); border-top:1px solid var(--border);
+    border-radius:16px 16px 0 0; padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+    max-width:680px; margin:0 auto; display:none; max-height:88vh; overflow-y:auto;
+  }
+  .panel.on{display:block}
+  .quote{
+    font-size:.82rem; color:var(--muted); border-left:3px solid var(--accent);
+    padding:6px 0 6px 11px; margin-bottom:12px; max-height:5.4em; overflow:hidden;
+  }
+
+  .note-item{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:13px; margin-bottom:9px}
+  .note-head{font-size:.72rem; color:var(--accent); font-weight:700; text-transform:uppercase;
+    letter-spacing:.06em; margin-bottom:6px}
+  .note-quote{font-size:.8rem; color:var(--muted); font-style:italic; margin-bottom:8px;
+    border-left:2px solid var(--border); padding-left:9px}
+  .note-body{font-size:.92rem; white-space:pre-wrap; word-break:break-word}
+
+  .q-section{font-size:.72rem; text-transform:uppercase; letter-spacing:.09em; color:var(--accent);
+    font-weight:700; margin:22px 0 10px}
+  .q-item{margin-bottom:16px}
+  .q-text{font-size:.9rem; margin-bottom:7px; font-weight:500}
+
+  .chk{display:flex; align-items:center; gap:8px; font-size:.83rem; color:var(--muted); cursor:pointer}
+  .chk input{width:auto; margin:0}
+
+  .kv{display:flex; justify-content:space-between; gap:12px; font-size:.85rem; padding:7px 0;
+    border-bottom:1px solid var(--border)}
+  .kv:last-child{border-bottom:none}
+  .kv b{font-weight:600}
+
+  code{background:var(--surface-2); padding:2px 5px; border-radius:5px; font-size:.85em;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; word-break:break-all}
+
+  .spinner{
+    display:inline-block; width:17px; height:17px; border:2px solid var(--border);
+    border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite;
+    vertical-align:-3px; margin-right:7px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<!-- ══ LIBRARY ══════════════════════════════════════ -->
+<div class="screen" id="s-library">
+  <div class="topbar">
+    <h1 id="app-title">Beta Reader</h1>
+    <button class="btn icon" onclick="cycleTheme()" title="Theme" id="theme-btn">◐</button>
+    <button class="btn icon" onclick="go('settings')" title="Settings">⚙</button>
+  </div>
+  <p class="sub" id="app-tagline" style="margin-bottom:16px">Listen to a manuscript. Talk back at the exact line.</p>
+  <div class="list" id="lib-list"></div>
+  <button class="btn wide" style="margin-top:14px" onclick="go('add')">+ Add a manuscript</button>
+</div>
+
+<!-- ══ ADD BOOK ═════════════════════════════════════ -->
+<div class="screen" id="s-add">
+  <div class="topbar">
+    <button class="btn icon" onclick="go('library')">←</button>
+    <h1>Add a manuscript</h1>
+  </div>
+
+  <label>From a file</label>
+  <input type="file" id="add-file" accept=".md,.markdown,.txt,.text" onchange="addFromFile(this)">
+  <p class="tiny muted" style="margin-top:6px">Markdown or plain text. Nothing is uploaded — it stays in this browser.</p>
+
+  <label>From a URL</label>
+  <input type="url" id="add-url" placeholder="https://example.com/manuscript.md" autocapitalize="off" spellcheck="false">
+  <div class="row" style="margin-top:8px">
+    <button class="btn sm" onclick="addFromUrl()">Fetch</button>
+  </div>
+  <p class="tiny muted" style="margin-top:6px">Must allow cross-origin reads (raw file hosts usually do).</p>
+
+  <label>Or paste the text</label>
+  <textarea id="add-paste" placeholder="Paste the manuscript here…" style="min-height:130px"></textarea>
+  <div class="row" style="margin-top:8px">
+    <button class="btn sm" onclick="addFromPaste()">Add pasted text</button>
+  </div>
+
+  <div class="status" id="add-status"></div>
+</div>
+
+<!-- ══ READER WELCOME ═══════════════════════════════ -->
+<div class="screen" id="s-welcome" style="justify-content:center; text-align:center">
+  <div style="font-size:2.6rem; margin-bottom:18px">📖</div>
+  <h1 id="w-title" style="font-size:1.5rem; margin-bottom:6px">—</h1>
+  <p class="sub" id="w-author" style="margin-bottom:26px"></p>
+  <p class="sub" style="margin-bottom:20px; line-height:1.6">
+    You'll listen straight through. Whenever something lands — good or bad — tap
+    <b>Add note</b> and say it. Your note is pinned to the exact passage.
+  </p>
+  <label style="text-align:left">Your first name</label>
+  <input id="w-name" type="text" placeholder="e.g. Sam" autocomplete="given-name"
+         onkeydown="if(event.key==='Enter')startReading()">
+  <button class="btn wide" style="margin-top:16px" onclick="startReading()">Start listening →</button>
+  <div class="status" id="w-status"></div>
+</div>
+
+<!-- ══ PLAYER ═══════════════════════════════════════ -->
+<div class="screen" id="s-player">
+  <div class="topbar">
+    <button class="btn icon" onclick="leavePlayer()">←</button>
+    <div style="flex:1; min-width:0">
+      <h1 id="p-title" style="font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">—</h1>
+      <div class="sub" id="p-sub"></div>
+    </div>
+    <button class="badge" onclick="go('notes')" id="p-notes-badge">Notes (0)</button>
+  </div>
+
+  <div class="prog-track"><div class="prog-fill" id="p-prog"></div></div>
+  <div class="stage" id="p-stage"></div>
+
+  <div class="controls">
+    <div class="speed">
+      <span class="tiny muted">Speed</span>
+      <input type="range" id="p-speed" min="0.5" max="2" step="0.1" value="1" oninput="setRate(this.value)">
+      <span class="speed-val" id="p-speed-val">1.0×</span>
+    </div>
+    <label class="chk" style="margin:0; text-transform:none; letter-spacing:0; font-size:.8rem">
+      <input type="checkbox" id="p-announce" onchange="setAnnounce(this.checked)"> Read headings
+    </label>
+  </div>
+
+  <div class="row" style="margin-bottom:10px">
+    <button class="btn ghost sm" onclick="step(-1)">← Back</button>
+    <button class="btn" id="p-play" onclick="togglePlay()" style="flex:1">▶ Play</button>
+    <button class="btn ghost sm" onclick="step(1)">Next →</button>
+  </div>
+
+  <button class="btn wide ghost" onclick="openNote()">📝 Add note here</button>
+  <div class="status" id="p-status"></div>
+</div>
+
+<!-- ══ NOTES ════════════════════════════════════════ -->
+<div class="screen" id="s-notes">
+  <div class="topbar">
+    <button class="btn icon" onclick="go('player')">←</button>
+    <h1 style="flex:1">Your notes</h1>
+    <span class="tiny muted" id="n-count"></span>
+  </div>
+  <div class="list" id="n-list"></div>
+  <div class="row" style="margin-top:14px">
+    <button class="btn ghost sm" onclick="go('questions')">Debrief questions →</button>
+    <div class="spacer"></div>
+    <button class="btn sm" onclick="go('deliver')">Send / export ↗</button>
+  </div>
+</div>
+
+<!-- ══ QUESTIONS ════════════════════════════════════ -->
+<div class="screen" id="s-questions">
+  <div class="topbar">
+    <button class="btn icon" onclick="go('notes')">←</button>
+    <h1 style="flex:1">Debrief</h1>
+    <span class="tiny muted" id="q-count"></span>
+  </div>
+  <p class="sub" style="margin-bottom:6px">Answer whichever ones you have something to say about. Saved as you type.</p>
+  <div class="list" id="q-list"></div>
+</div>
+
+<!-- ══ DELIVER ══════════════════════════════════════ -->
+<div class="screen" id="s-deliver">
+  <div class="topbar">
+    <button class="btn icon" onclick="go('notes')">←</button>
+    <h1>Send your notes</h1>
+  </div>
+
+  <div class="card">
+    <h2>Download</h2>
+    <p class="sub" style="margin:6px 0 12px">Saves a Markdown file you can email or drop in a folder. Always works.</p>
+    <div class="row">
+      <button class="btn sm" onclick="downloadNotes('md')">Download .md</button>
+      <button class="btn ghost sm" onclick="downloadNotes('json')">Download .json</button>
+      <button class="btn ghost sm" onclick="copyNotes()">Copy to clipboard</button>
+    </div>
+  </div>
+
+  <div class="card" id="deliver-worker-card">
+    <h2>Send to the author</h2>
+    <p class="sub" style="margin:6px 0 12px" id="deliver-worker-sub">—</p>
+    <button class="btn sm" id="deliver-send-btn" onclick="submitNotes()">Send notes</button>
+  </div>
+
+  <div class="status" id="d-status"></div>
+</div>
+
+<!-- ══ SHARE ════════════════════════════════════════ -->
+<div class="screen" id="s-share">
+  <div class="topbar">
+    <button class="btn icon" onclick="go('library')">←</button>
+    <h1>Invite a reader</h1>
+  </div>
+  <p class="sub" style="margin-bottom:8px">
+    A reader link opens straight into listen-and-comment mode. The manuscript itself is fetched
+    from the URL you give here — this app never hosts it.
+  </p>
+
+  <label>Manuscript URL</label>
+  <input type="url" id="sh-url" placeholder="https://example.com/manuscript.md" autocapitalize="off" spellcheck="false">
+  <label>Title</label>
+  <input type="text" id="sh-title" placeholder="Book title">
+  <label>Author line (optional)</label>
+  <input type="text" id="sh-author" placeholder="by …">
+
+  <button class="btn wide" style="margin-top:16px" onclick="buildShareLink()">Build the link</button>
+
+  <div id="sh-out" class="hidden" style="margin-top:16px">
+    <label>Reader link</label>
+    <textarea id="sh-link" readonly style="min-height:96px; font-size:.8rem"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sm" onclick="copyShare()">Copy link</button>
+    </div>
+  </div>
+  <div class="status" id="sh-status"></div>
+</div>
+
+<!-- ══ SETTINGS ═════════════════════════════════════ -->
+<div class="screen" id="s-settings">
+  <div class="topbar">
+    <button class="btn icon" onclick="settingsBack()">←</button>
+    <h1>Settings</h1>
+  </div>
+
+  <label>Your name</label>
+  <input type="text" id="set-name" placeholder="Used to sign your notes">
+
+  <label>Voice engine</label>
+  <select id="set-provider" onchange="onProviderChange()">
+    <option value="webspeech">Built-in browser voice (free, no setup)</option>
+    <option value="worker">Voice server (better voices — needs setup)</option>
+  </select>
+
+  <div id="set-webspeech-box">
+    <label>Browser voice</label>
+    <select id="set-voice-local"></select>
+  </div>
+
+  <div id="set-worker-box" class="hidden">
+    <label>Voice server URL</label>
+    <input type="url" id="set-worker-url" placeholder="https://your-worker.workers.dev"
+           autocapitalize="off" spellcheck="false">
+    <label>Access code (only if your server requires one)</label>
+    <input type="text" id="set-worker-code" placeholder="optional" autocapitalize="off" spellcheck="false">
+    <label>Voice name</label>
+    <input type="text" id="set-voice-remote" placeholder="e.g. nova" autocapitalize="off" spellcheck="false">
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost sm" onclick="testWorker()">Test connection</button>
+    </div>
+  </div>
+
+  <label>Appearance</label>
+  <select id="set-theme" onchange="setTheme(this.value)">
+    <option value="auto">Match my device</option>
+    <option value="light">Light</option>
+    <option value="dark">Dark</option>
+  </select>
+
+  <button class="btn wide" style="margin-top:20px" onclick="saveSettings()">Save settings</button>
+  <div class="status" id="set-status"></div>
+
+  <div style="margin-top:26px; border-top:1px solid var(--border); padding-top:16px">
+    <h2 class="muted" style="font-size:.8rem; text-transform:uppercase; letter-spacing:.07em">Data</h2>
+    <p class="tiny muted" style="margin:8px 0 12px">
+      Everything — manuscripts, notes, progress — lives in this browser only. Nothing is sent
+      anywhere unless you press Send on the delivery screen.
+    </p>
+    <button class="btn ghost sm" onclick="wipeAll()">Erase all local data</button>
+  </div>
+</div>
+
+<!-- ══ NOTE PANEL ═══════════════════════════════════ -->
+<div id="backdrop" onclick="closeNote()"></div>
+<div class="panel" id="note-panel">
+  <div class="quote" id="np-quote">—</div>
+  <button class="btn wide" id="np-rec" onclick="toggleRecord()">🎙 Tap to speak</button>
+  <textarea id="np-text" placeholder="…or type your note" style="margin-top:10px"></textarea>
+  <div class="row" style="margin-top:12px">
+    <button class="btn ghost sm" onclick="closeNote()">Cancel</button>
+    <div class="spacer"></div>
+    <button class="btn sm" onclick="saveNote()">Save note</button>
+  </div>
+  <div class="status" id="np-status"></div>
+</div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════
+   Beta Reader — a single-file, no-build, no-account
+   listen-and-comment tool for manuscripts.
+
+   Nothing in this file is specific to any person, book,
+   company, or host. Optional server config is supplied
+   at runtime (config.json or the Settings screen) and
+   is never baked in here.
+   ═══════════════════════════════════════════════════ */
+
+// ── defaults (overridable by config.json) ────────────
+const DEFAULTS = {
+  title: 'Beta Reader',
+  tagline: 'Listen to a manuscript. Talk back at the exact line.',
+  accent: '',
+  workerUrl: '',
+  accessCode: '',
+  ttsProvider: 'webspeech',   // 'webspeech' | 'worker'
+  remoteVoice: 'nova',
+  library: [],                // [{title, author, url}] — offered on the library screen
+  questions: null,            // null → built-in set
+};
+
+const BUILTIN_QUESTIONS = [
+  {section:'The big picture', q:'Did the book deliver what you expected when you started? If not — pleasant surprise, or disappointment?'},
+  {q:'What is the one thing you will still remember six months from now?'},
+  {q:'Who would you hand this to, and how would you describe it in one sentence?'},
+  {q:'If you could change one thing — structure, length, tone, focus — what would it be?'},
+  {q:'Did you finish it? If not, where did you stop, and what made you stop there?'},
+  {section:'Pacing and structure', q:'Did you ever want to skip ahead? Be specific — "the middle dragged" beats "some parts felt slow."'},
+  {q:'Was there a section that felt out of place, or like it did not need to be there?'},
+  {q:'Did the opening earn your attention fast enough?'},
+  {q:'Did the ending feel earned, or did the book run out of road?'},
+  {section:'Voice and tone', q:'Does the voice feel like a real person, or like a performance?'},
+  {q:'Were there moments that felt preachy, or like you were being lectured?'},
+  {q:'Did the humour land, or did anything feel forced and pull you out?'},
+  {section:'Clarity', q:'Was there a passage you had to reread? What was confusing about it?'},
+  {q:'Was there a question you carried for a while that never got answered?'},
+  {q:'Did it ever assume knowledge you did not have and lose you?'},
+  {section:'Impact', q:'What hit hardest — a line, a moment, an idea that actually landed?'},
+  {q:'Was there a moment you felt talked down to?'},
+  {q:'Did you trust the narrator? Anything that made you think "I am not sure I believe this"?'},
+  {section:'Final take', q:'Did the book earn its length, or should it have been shorter?'},
+  {q:'Anything that felt included to justify the book existing rather than because it needed to be there?'},
+];
+
+let CFG = Object.assign({}, DEFAULTS);
+let QUESTIONS = BUILTIN_QUESTIONS;
+
+// ── runtime state ────────────────────────────────────
+const S = {
+  mode: 'author',        // 'author' | 'reader'
+  screen: '',
+  book: null,            // {id,title,author,text,source}
+  units: [],             // [{type:'p'|'h', text, level}]
+  idx: 0,
+  playing: false,
+  gen: 0,                // playback generation — cancels stale callbacks
+  audio: null,
+  cache: {},             // idx -> object URL (worker TTS)
+  fetching: new Set(),
+  rate: 1,
+  announce: true,
+  notes: {},             // idx -> {text, quote, at}
+  answers: {},
+  noteIdx: null,
+  recording: false,
+  recorder: null,
+  chunks: [],
+  recog: null,
+  wasPlaying: false,
+  settingsFrom: 'library',
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function ls(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : v; }catch(e){ return d; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+function lsJSON(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch(e){ return d; } }
+
+function status(id, msg, kind){
+  const el = $(id); if(!el) return;
+  el.className = 'status' + (kind ? ' ' + kind : '');
+  el.innerHTML = msg || '';
+}
+
+// ═══════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════
+
+window.addEventListener('load', boot);
+
+async function boot(){
+  applyTheme(ls('br.theme','auto'));
+  await loadConfig();
+  applyBranding();
+  loadSettingsIntoState();
+
+  const p = new URLSearchParams(location.search);
+  const bookUrl = p.get('book') || p.get('src') || '';
+
+  if (bookUrl){
+    S.mode = 'reader';
+    const b = {
+      id: p.get('id') || slug(p.get('title') || bookUrl),
+      title: p.get('title') || 'Untitled manuscript',
+      author: p.get('author') || '',
+      source: bookUrl,
+      text: '',
+    };
+    S.book = b;
+    $('w-title').textContent = b.title;
+    $('w-author').textContent = b.author ? 'by ' + b.author : '';
+    $('w-name').value = ls('br.reader','');
+    go('welcome');
+  } else {
+    S.mode = 'author';
+    await renderLibrary();
+    go('library');
+  }
+
+  primeVoices();
+  keepSpeechAlive();
+}
+
+async function loadConfig(){
+  try{
+    const r = await fetch('config.json', {cache:'no-store'});
+    if (r.ok) CFG = Object.assign({}, DEFAULTS, await r.json());
+  }catch(e){ /* no config.json — perfectly fine */ }
+  if (Array.isArray(CFG.questions) && CFG.questions.length) QUESTIONS = CFG.questions;
+}
+
+function applyBranding(){
+  document.title = CFG.title || DEFAULTS.title;
+  $('app-title').textContent = CFG.title || DEFAULTS.title;
+  $('app-tagline').textContent = CFG.tagline || DEFAULTS.tagline;
+  if (CFG.accent) document.documentElement.style.setProperty('--accent', CFG.accent);
+}
+
+function loadSettingsIntoState(){
+  const st = settings();
+  S.rate = parseFloat(st.rate) || 1;
+  S.announce = st.announce !== false;
+  $('p-speed').value = S.rate;
+  $('p-speed-val').textContent = S.rate.toFixed(1) + '×';
+  $('p-announce').checked = S.announce;
+}
+
+/** Settings resolve in this order: saved local settings → config.json → defaults. */
+function settings(){
+  const saved = lsJSON('br.settings', {});
+  return {
+    name:       saved.name       ?? ls('br.reader',''),
+    provider:   saved.provider   ?? CFG.ttsProvider ?? 'webspeech',
+    workerUrl:  (saved.workerUrl ?? CFG.workerUrl ?? '').replace(/\/+$/,''),
+    accessCode: saved.accessCode ?? CFG.accessCode ?? '',
+    localVoice: saved.localVoice ?? '',
+    remoteVoice:saved.remoteVoice?? CFG.remoteVoice ?? 'nova',
+    rate:       saved.rate       ?? 1,
+    announce:   saved.announce   ?? true,
+  };
+}
+function saveSetting(patch){
+  const cur = lsJSON('br.settings', {});
+  lsSet('br.settings', JSON.stringify(Object.assign(cur, patch)));
+}
+
+// ═══════════════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════════════
+
+function go(name){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = $('s-' + name);
+  if (el) el.classList.add('active');
+  S.screen = name;
+  window.scrollTo(0,0);
+
+  if (name === 'notes')     renderNotes();
+  if (name === 'questions') renderQuestions();
+  if (name === 'settings')  fillSettings();
+  if (name === 'deliver')   renderDeliver();
+  if (name === 'library')   renderLibrary();
+}
+
+function leavePlayer(){
+  stopPlayback();
+  if (S.mode === 'reader') go('notes');
+  else go('library');
+}
+
+function settingsBack(){ go(S.settingsFrom || 'library'); }
+
+// ═══════════════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════════════
+
+function applyTheme(t){
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  const btn = $('theme-btn');
+  if (btn) btn.textContent = t === 'light' ? '☀' : t === 'dark' ? '☾' : '◐';
+}
+function setTheme(t){ lsSet('br.theme', t); applyTheme(t); }
+function cycleTheme(){
+  const order = ['auto','light','dark'];
+  const next = order[(order.indexOf(ls('br.theme','auto')) + 1) % order.length];
+  setTheme(next);
+}
+
+// ═══════════════════════════════════════════════════
+// STORAGE — manuscripts in IndexedDB, the rest in localStorage
+// ═══════════════════════════════════════════════════
+
+const DB_NAME = 'beta-reader', DB_STORE = 'books';
+let _db = null;
+
+function db(){
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) return reject(new Error('This browser has no local storage for manuscripts.'));
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      if (!d.objectStoreNames.contains(DB_STORE)) d.createObjectStore(DB_STORE, {keyPath:'id'});
+    };
+    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onerror = () => reject(req.error || new Error('Could not open local storage.'));
+  });
+}
+function dbTx(mode, fn){
+  return db().then(d => new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, mode);
+    const req = fn(tx.objectStore(DB_STORE));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  }));
+}
+const putBook  = b  => dbTx('readwrite', s => s.put(b));
+const getBook  = id => dbTx('readonly',  s => s.get(id));
+const allBooks = () => dbTx('readonly',  s => s.getAll());
+const delBook  = id => dbTx('readwrite', s => s.delete(id));
+
+function slug(s){
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'').slice(0,48) || ('book-' + Date.now().toString(36));
+}
+
+// ═══════════════════════════════════════════════════
+// LIBRARY
+// ═══════════════════════════════════════════════════
+
+async function renderLibrary(){
+  const el = $('lib-list');
+  let books = [];
+  try { books = await allBooks(); } catch(e){}
+  books.sort((a,b) => (b.addedAt||0) - (a.addedAt||0));
+
+  let html = '';
+
+  if (Array.isArray(CFG.library) && CFG.library.length){
+    html += '<div class="q-section" style="margin-top:0">Available to read</div>';
+    CFG.library.forEach((b,i) => {
+      html += `<div class="card tap" onclick="openFromCatalog(${i})">
+        <b>${esc(b.title || 'Untitled')}</b>
+        ${b.author ? `<div class="sub">${esc(b.author)}</div>` : ''}
+        <div class="tiny muted" style="margin-top:6px">Tap to fetch and listen</div>
+      </div>`;
+    });
+  }
+
+  if (books.length){
+    html += '<div class="q-section"' + (html ? '' : ' style="margin-top:0"') + '>On this device</div>';
+    books.forEach(b => {
+      const n = Object.keys(lsJSON('br.notes.' + b.id, {})).length;
+      const prog = parseInt(ls('br.progress.' + b.id, '0'), 10) || 0;
+      html += `<div class="card">
+        <div class="card tap" style="border:none;padding:0;margin:0;background:transparent" onclick="openBook('${esc(b.id)}')">
+          <b>${esc(b.title)}</b>
+          ${b.author ? `<div class="sub">${esc(b.author)}</div>` : ''}
+          <div class="tiny muted" style="margin-top:6px">
+            ${n} note${n===1?'':'s'}${prog ? ' · resumes at passage ' + (prog+1) : ''}
+          </div>
+        </div>
+        <div class="row tight" style="margin-top:11px">
+          <button class="btn ghost sm" onclick="event.stopPropagation();shareFor('${esc(b.id)}')">Invite a reader</button>
+          <div class="spacer"></div>
+          <button class="btn ghost sm" onclick="event.stopPropagation();removeBook('${esc(b.id)}')">Remove</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  if (!html){
+    html = `<div class="empty">
+      Nothing here yet.<br><br>
+      Add a manuscript from a file, a URL, or by pasting the text.
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+async function openFromCatalog(i){
+  const entry = (CFG.library || [])[i];
+  if (!entry) return;
+  status('add-status', '<span class="spinner"></span>Fetching…');
+  try{
+    const text = await fetchText(entry.url);
+    const b = {
+      id: entry.id || slug(entry.title || entry.url),
+      title: entry.title || 'Untitled manuscript',
+      author: entry.author || '',
+      source: entry.url, text, addedAt: Date.now(),
+    };
+    await putBook(b);
+    openBookObj(b);
+  }catch(e){
+    alert('Could not fetch that manuscript: ' + e.message);
+  }
+}
+
+async function fetchText(url){
+  const r = await fetch(url, {cache:'no-store'});
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const t = await r.text();
+  if (!t.trim()) throw new Error('the file was empty');
+  return t;
+}
+
+function addFromFile(input){
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = async () => {
+    const title = f.name.replace(/\.(md|markdown|txt|text)$/i,'').replace(/[_-]+/g,' ').trim();
+    await addBook(title, '', String(fr.result || ''), 'file:' + f.name);
+    input.value = '';
+  };
+  fr.onerror = () => status('add-status', 'Could not read that file.', 'err');
+  fr.readAsText(f);
+}
+
+async function addFromUrl(){
+  const url = $('add-url').value.trim();
+  if (!url) return status('add-status', 'Paste a URL first.', 'warn');
+  status('add-status', '<span class="spinner"></span>Fetching…');
+  try{
+    const text = await fetchText(url);
+    const guess = (url.split('/').pop() || 'manuscript').replace(/\.[a-z]+$/i,'').replace(/[_-]+/g,' ');
+    await addBook(guess, '', text, url);
+    $('add-url').value = '';
+  }catch(e){
+    status('add-status', 'Fetch failed: ' + e.message + '. If it is a private or CORS-blocked host, download the file and add it above.', 'err');
+  }
+}
+
+async function addFromPaste(){
+  const text = $('add-paste').value;
+  if (!text.trim()) return status('add-status', 'Nothing pasted yet.', 'warn');
+  const first = text.trim().split('\n')[0].replace(/^#+\s*/,'').slice(0,60);
+  await addBook(first || 'Pasted manuscript', '', text, 'pasted');
+  $('add-paste').value = '';
+}
+
+async function addBook(title, author, text, source){
+  const b = {id: slug(title) + '-' + Date.now().toString(36), title, author, text, source, addedAt: Date.now()};
+  try{
+    await putBook(b);
+    status('add-status', 'Added “' + esc(title) + '”.', 'ok');
+    await sleep(400);
+    openBookObj(b);
+  }catch(e){
+    status('add-status', 'Could not save: ' + e.message, 'err');
+  }
+}
+
+async function removeBook(id){
+  if (!confirm('Remove this manuscript from this device? Your notes for it are kept.')) return;
+  try{ await delBook(id); }catch(e){}
+  renderLibrary();
+}
+
+async function openBook(id){
+  const b = await getBook(id);
+  if (!b) return alert('That manuscript is no longer on this device.');
+  openBookObj(b);
+}
+
+function openBookObj(b){
+  S.book = b;
+  S.notes = lsJSON('br.notes.' + b.id, {});
+  S.answers = lsJSON('br.answers.' + b.id, {});
+  S.units = parseManuscript(b.text);
+  S.idx = Math.min(parseInt(ls('br.progress.' + b.id, '0'), 10) || 0, Math.max(0, S.units.length - 1));
+  S.cache = {}; S.fetching = new Set();
+  $('p-title').textContent = b.title;
+  $('p-sub').textContent = b.author ? 'by ' + b.author : (S.units.length + ' passages');
+  renderStage();
+  updateBadge();
+  go('player');
+}
+
+// ═══════════════════════════════════════════════════
+// READER MODE
+// ═══════════════════════════════════════════════════
+
+async function startReading(){
+  const name = $('w-name').value.trim();
+  if (!name) return status('w-status', 'Type your first name so your notes are attributed.', 'warn');
+  lsSet('br.reader', name);
+  saveSetting({name});
+  status('w-status', '<span class="spinner"></span>Loading the manuscript…');
+  try{
+    S.book.text = await fetchText(S.book.source);
+  }catch(e){
+    return status('w-status', 'Could not load the manuscript (' + e.message +
+      '). Check the link with whoever sent it.', 'err');
+  }
+  status('w-status', '');
+  openBookObj(S.book);
+}
+
+// ═══════════════════════════════════════════════════
+// MANUSCRIPT PARSING
+// ═══════════════════════════════════════════════════
+
+/** Split Markdown/plain text into speakable units: headings and paragraphs. */
+function parseManuscript(text){
+  const out = [];
+  const lines = String(text || '').replace(/\r\n?/g,'\n').split('\n');
+  let buf = [];
+  let inFence = false;
+  const flush = () => {
+    const p = clean(buf.join(' '));
+    if (p) out.push({type:'p', text:p});
+    buf = [];
+  };
+  for (const raw of lines){
+    const line = raw.trim();
+    if (/^(```|~~~)/.test(line)){ inFence = !inFence; flush(); continue; }
+    if (inFence) continue;
+    if (!line){ flush(); continue; }
+    if (/^<!--/.test(line) && /-->$/.test(line)) continue;   // provenance comments
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)){ flush(); continue; }
+    const h = line.match(/^(#{1,6})\s+(.+)$/);
+    if (h){ flush(); out.push({type:'h', level:h[1].length, text: clean(h[2])}); continue; }
+    buf.push(line);
+  }
+  flush();
+  return out;
+}
+
+/** Strip Markdown decoration so the text reads aloud cleanly. */
+function clean(s){
+  return String(s || '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g,'')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')
+    .replace(/`{1,3}([^`]*)`{1,3}/g,'$1')
+    .replace(/(\*\*|__)(.*?)\1/g,'$2')
+    .replace(/(\*|_)(.*?)\1/g,'$2')
+    .replace(/^>\s?/,'')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+// Units are already cleaned at parse time; this exists so a future engine can
+// re-shape text for speech without touching what is shown on screen.
+function speakable(u){ return u.text; }
+
+// ═══════════════════════════════════════════════════
+// STAGE RENDERING
+// ═══════════════════════════════════════════════════
+
+function renderStage(){
+  const el = $('p-stage');
+  if (!S.units.length){
+    el.innerHTML = '<div class="empty">This manuscript came through empty.</div>';
+    return;
+  }
+  el.innerHTML = S.units.map((u,i) =>
+    `<div class="unit ${u.type==='h'?'h':''} ${S.notes[i]?'noted':''} ${i===S.idx?'active':''}" id="u${i}"
+          onclick="jumpTo(${i})">${esc(u.text)}</div>`
+  ).join('');
+  scrollToActive(false);
+  updateProgress();
+}
+
+function refreshActive(prev){
+  const p = $('u'+prev), c = $('u'+S.idx);
+  if (p) p.classList.remove('active');
+  if (c) c.classList.add('active');
+  scrollToActive(true);
+  updateProgress();
+}
+
+function scrollToActive(smooth){
+  const c = $('u'+S.idx);
+  if (!c) return;
+  try{ c.scrollIntoView({block:'center', behavior: smooth ? 'smooth' : 'auto'}); }catch(e){ c.scrollIntoView(); }
+}
+
+function updateProgress(){
+  const pct = S.units.length ? (S.idx / S.units.length) * 100 : 0;
+  $('p-prog').style.width = pct.toFixed(1) + '%';
+  if (S.book) lsSet('br.progress.' + S.book.id, String(S.idx));
+}
+
+function updateBadge(){
+  const n = Object.keys(S.notes).length;
+  $('p-notes-badge').textContent = 'Notes (' + n + ')';
+}
+
+function jumpTo(i){
+  const prev = S.idx;
+  S.idx = i;
+  refreshActive(prev);
+  if (S.playing){ stopAudio(); S.gen++; playLoop(); }
+}
+
+function step(d){
+  const prev = S.idx;
+  S.idx = Math.max(0, Math.min(S.units.length - 1, S.idx + d));
+  refreshActive(prev);
+  if (S.playing){ stopAudio(); S.gen++; playLoop(); }
+}
+
+// ═══════════════════════════════════════════════════
+// PLAYBACK
+// ═══════════════════════════════════════════════════
+
+function togglePlay(){ S.playing ? pause() : play(); }
+
+function play(){
+  if (!S.units.length) return;
+  S.playing = true;
+  $('p-play').textContent = '⏸ Pause';
+  S.gen++;
+  playLoop();
+}
+
+function pause(){
+  S.playing = false;
+  $('p-play').textContent = '▶ Play';
+  S.gen++;
+  stopAudio();
+}
+
+function stopPlayback(){ pause(); }
+
+function stopAudio(){
+  try{ if (window.speechSynthesis) speechSynthesis.cancel(); }catch(e){}
+  if (S.audio){ try{ S.audio.pause(); }catch(e){} S.audio = null; }
+}
+
+async function playLoop(){
+  const gen = S.gen;
+  while (S.playing && gen === S.gen && S.idx < S.units.length){
+    const u = S.units[S.idx];
+    if (u.type === 'h' && !S.announce){ advance(gen); continue; }
+    const text = speakable(u);
+    if (!text){ advance(gen); continue; }
+    try{
+      await speakUnit(S.idx, text, gen);
+    }catch(e){
+      status('p-status', 'Voice error: ' + e.message, 'err');
+      S.playing = false; $('p-play').textContent = '▶ Play';
+      return;
+    }
+    if (gen !== S.gen || !S.playing) return;
+    advance(gen);
+  }
+  if (S.playing && S.idx >= S.units.length){
+    S.playing = false;
+    $('p-play').textContent = '▶ Play';
+    status('p-status', 'That is the end. Add anything else you want to say, then send your notes.', 'ok');
+    if (S.mode === 'reader') setTimeout(() => go('questions'), 900);
+  }
+}
+
+function advance(gen){
+  if (gen !== S.gen) return;
+  const prev = S.idx;
+  S.idx++;
+  if (S.idx < S.units.length) refreshActive(prev);
+  else updateProgress();
+}
+
+function speakUnit(i, text, gen){
+  const st = settings();
+  return st.provider === 'worker' && st.workerUrl
+    ? speakViaWorker(i, text, gen)
+    : speakViaBrowser(text, gen);
+}
+
+// ── engine A: the browser's own voice (no setup, no key) ──
+function speakViaBrowser(text, gen){
+  return new Promise((resolve, reject) => {
+    if (!('speechSynthesis' in window))
+      return reject(new Error('this browser has no built-in voice — set up a voice server in Settings'));
+    // Long utterances get truncated in some browsers; speak in sentence-sized chunks.
+    const chunks = chunkText(text, 220);
+    let n = 0;
+    const st = settings();
+    const voice = pickVoice(st.localVoice);
+    const next = () => {
+      if (gen !== S.gen || !S.playing) return resolve();
+      if (n >= chunks.length) return resolve();
+      const u = new SpeechSynthesisUtterance(chunks[n++]);
+      u.rate = S.rate;
+      if (voice) u.voice = voice;
+      u.onend = next;
+      u.onerror = ev => {
+        if (ev && (ev.error === 'interrupted' || ev.error === 'canceled')) return resolve();
+        reject(new Error(ev && ev.error ? ev.error : 'speech failed'));
+      };
+      try{ speechSynthesis.speak(u); }catch(e){ reject(e); }
+    };
+    next();
+  });
+}
+
+function chunkText(text, max){
+  const parts = String(text).match(/[^.!?…]+[.!?…]*\s*/g) || [text];
+  const out = []; let cur = '';
+  for (const p of parts){
+    if ((cur + p).length > max && cur){ out.push(cur.trim()); cur = p; }
+    else cur += p;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.length ? out : [text];
+}
+
+let VOICES = [];
+function primeVoices(){
+  if (!('speechSynthesis' in window)) return;
+  const load = () => {
+    VOICES = speechSynthesis.getVoices() || [];
+    const sel = $('set-voice-local');
+    if (sel && VOICES.length){
+      const want = settings().localVoice;
+      sel.innerHTML = '<option value="">System default</option>' +
+        VOICES.map(v => `<option value="${esc(v.name)}"${v.name===want?' selected':''}>${esc(v.name)} — ${esc(v.lang)}</option>`).join('');
+    }
+  };
+  load();
+  speechSynthesis.onvoiceschanged = load;
+}
+function pickVoice(name){
+  if (!name) return null;
+  if (!VOICES.length && 'speechSynthesis' in window) VOICES = speechSynthesis.getVoices() || [];
+  return VOICES.find(v => v.name === name) || null;
+}
+
+/** Some browsers stall long speech queues; a periodic pause/resume keeps them alive. */
+function keepSpeechAlive(){
+  setInterval(() => {
+    try{
+      if (S.playing && settings().provider !== 'worker' &&
+          window.speechSynthesis && speechSynthesis.speaking && !speechSynthesis.paused){
+        speechSynthesis.pause(); speechSynthesis.resume();
+      }
+    }catch(e){}
+  }, 9000);
+}
+
+// ── engine B: a voice server the user deployed themselves ──
+function speakViaWorker(i, text, gen){
+  return new Promise(async (resolve, reject) => {
+    let url = S.cache[i];
+    if (!url){
+      try{ url = await fetchAudio(i, text); }
+      catch(e){ return reject(e); }
+    }
+    if (gen !== S.gen || !S.playing) return resolve();
+    prefetch(i + 1); prefetch(i + 2);
+    const a = new Audio(url);
+    a.playbackRate = S.rate;
+    S.audio = a;
+    a.onended = () => resolve();
+    a.onerror = () => resolve();     // a dud clip should not stall the book
+    a.play().catch(err => reject(new Error('playback blocked — tap Play again')));
+  });
+}
+
+async function fetchAudio(i, text){
+  const st = settings();
+  S.fetching.add(i);
+  try{
+    const r = await fetch(st.workerUrl + '/tts', {
+      method:'POST',
+      headers: withCode({'Content-Type':'application/json'}),
+      body: JSON.stringify({text, voice: st.remoteVoice}),
+    });
+    if (!r.ok) throw new Error('voice server said ' + r.status);
+    const url = URL.createObjectURL(await r.blob());
+    S.cache[i] = url;
+    return url;
+  } finally { S.fetching.delete(i); }
+}
+
+function prefetch(i){
+  if (i >= S.units.length || S.cache[i] || S.fetching.has(i)) return;
+  const u = S.units[i];
+  if (!u || (u.type === 'h' && !S.announce)) return;
+  const t = speakable(u);
+  if (t) fetchAudio(i, t).catch(() => {});
+}
+
+function withCode(h){
+  const code = settings().accessCode;
+  if (code) h['X-Access-Code'] = code;
+  return h;
+}
+
+function setRate(v){
+  S.rate = parseFloat(v) || 1;
+  $('p-speed-val').textContent = S.rate.toFixed(1) + '×';
+  saveSetting({rate: S.rate});
+  if (S.audio) S.audio.playbackRate = S.rate;
+  if (S.playing && settings().provider !== 'worker'){ stopAudio(); S.gen++; playLoop(); }
+}
+
+function setAnnounce(v){ S.announce = v; saveSetting({announce: v}); }
+
+// ═══════════════════════════════════════════════════
+// NOTES
+// ═══════════════════════════════════════════════════
+
+function openNote(){
+  S.noteIdx = S.idx;
+  S.wasPlaying = S.playing;
+  if (S.playing) pause();
+  const u = S.units[S.idx];
+  $('np-quote').textContent = u ? u.text.slice(0, 260) + (u.text.length > 260 ? '…' : '') : '';
+  const existing = S.notes[S.idx];
+  $('np-text').value = existing ? existing.text : '';
+  status('np-status','');
+  resetRecordBtn();
+  $('backdrop').classList.add('on');
+  $('note-panel').classList.add('on');
+  setTimeout(() => $('np-text').focus(), 120);
+}
+
+function closeNote(){
+  if (S.recording) stopRecording(true);
+  $('backdrop').classList.remove('on');
+  $('note-panel').classList.remove('on');
+  S.noteIdx = null;
+  if (S.wasPlaying){ S.wasPlaying = false; play(); }
+}
+
+function saveNote(){
+  const text = $('np-text').value.trim();
+  const i = S.noteIdx;
+  if (i === null) return;
+  if (!text){ delete S.notes[i]; }
+  else {
+    S.notes[i] = {
+      text,
+      quote: (S.units[i] ? S.units[i].text : '').slice(0, 300),
+      at: new Date().toISOString(),
+    };
+  }
+  persistNotes();
+  const el = $('u'+i);
+  if (el) el.classList.toggle('noted', !!S.notes[i]);
+  updateBadge();
+  closeNote();
+  status('p-status', text ? 'Note saved on passage ' + (i+1) + '.' : 'Note removed.', 'ok');
+  setTimeout(() => status('p-status',''), 2600);
+}
+
+function persistNotes(){
+  if (S.book) lsSet('br.notes.' + S.book.id, JSON.stringify(S.notes));
+}
+
+function renderNotes(){
+  const keys = Object.keys(S.notes).map(Number).sort((a,b)=>a-b);
+  $('n-count').textContent = keys.length + ' note' + (keys.length===1?'':'s');
+  const el = $('n-list');
+  if (!keys.length){
+    el.innerHTML = '<div class="empty">No notes yet. On the player, tap <b>Add note here</b> at the moment something lands.</div>';
+    return;
+  }
+  el.innerHTML = keys.map(i => `
+    <div class="note-item">
+      <div class="note-head">Passage ${i+1}</div>
+      <div class="note-quote">${esc((S.notes[i].quote||'').slice(0,180))}${(S.notes[i].quote||'').length>180?'…':''}</div>
+      <div class="note-body">${esc(S.notes[i].text)}</div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" onclick="editNote(${i})">Edit</button>
+        <button class="btn ghost sm" onclick="deleteNote(${i})">Delete</button>
+        <div class="spacer"></div>
+        <button class="btn ghost sm" onclick="goToPassage(${i})">Go to passage</button>
+      </div>
+    </div>`).join('');
+}
+
+function editNote(i){ go('player'); S.idx = i; renderStage(); openNote(); }
+function goToPassage(i){ go('player'); jumpTo(i); }
+function deleteNote(i){
+  if (!confirm('Delete this note?')) return;
+  delete S.notes[i]; persistNotes(); renderNotes(); updateBadge();
+}
+
+// ── dictation ────────────────────────────────────────
+function toggleRecord(){ S.recording ? stopRecording(false) : startRecording(); }
+
+function resetRecordBtn(){
+  const b = $('np-rec');
+  b.textContent = '🎙 Tap to speak';
+  b.classList.remove('rec');
+}
+
+async function startRecording(){
+  const st = settings();
+  const canWhisper = st.provider === 'worker' && st.workerUrl;
+  // Prefer the browser's own dictation when there is no transcription server.
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!canWhisper && SR) return startBrowserDictation(SR);
+  if (!canWhisper && !SR)
+    return status('np-status', 'This browser cannot dictate. Type the note, or set up a voice server in Settings for speech-to-text.', 'warn');
+  return startWhisperRecording();
+}
+
+function startBrowserDictation(SR){
+  try{
+    const r = new SR();
+    r.continuous = true; r.interimResults = true; r.lang = navigator.language || 'en-US';
+    const base = $('np-text').value ? $('np-text').value.replace(/\s+$/,'') + ' ' : '';
+    r.onresult = ev => {
+      let out = '';
+      for (let i = 0; i < ev.results.length; i++) out += ev.results[i][0].transcript;
+      $('np-text').value = base + out.trim();
+    };
+    r.onerror = ev => {
+      status('np-status', dictationError(ev && ev.error), 'err');
+      S.recording = false; resetRecordBtn();
+    };
+    r.onend = () => { S.recording = false; resetRecordBtn(); };
+    r.start();
+    S.recog = r; S.recording = true;
+    const b = $('np-rec'); b.textContent = '⏹ Stop — listening…'; b.classList.add('rec');
+    status('np-status', 'Speak now. Tap stop when you are done.');
+  }catch(e){
+    status('np-status', 'Could not start dictation: ' + e.message, 'err');
+  }
+}
+
+function dictationError(code){
+  if (code === 'not-allowed' || code === 'service-not-allowed')
+    return 'Microphone blocked. Allow mic access for this site, then tap again.';
+  if (code === 'no-speech') return 'Did not catch anything — tap and try again.';
+  return 'Dictation error: ' + (code || 'unknown') + '. You can type the note instead.';
+}
+
+async function startWhisperRecording(){
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const mime = ['audio/webm','audio/mp4','audio/ogg'].find(m =>
+      window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
+    const rec = new MediaRecorder(stream, mime ? {mimeType:mime} : undefined);
+    S.chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) S.chunks.push(e.data); };
+    rec.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(S.chunks, {type: mime || 'audio/webm'});
+      if (!blob.size || S._discard){ S._discard = false; return; }
+      status('np-status', '<span class="spinner"></span>Transcribing…');
+      try{
+        const text = await transcribe(blob, mime);
+        const cur = $('np-text').value.replace(/\s+$/,'');
+        $('np-text').value = (cur ? cur + ' ' : '') + text;
+        status('np-status', 'Transcribed. Edit it if you like, then save.', 'ok');
+      }catch(e){
+        status('np-status', 'Transcription failed: ' + e.message + '. Type the note instead.', 'err');
+      }
+    };
+    rec.start();
+    S.recorder = rec; S.recording = true;
+    const b = $('np-rec'); b.textContent = '⏹ Stop — recording…'; b.classList.add('rec');
+    status('np-status', 'Recording. Tap stop when you are done.');
+  }catch(e){
+    status('np-status', 'Microphone blocked. Allow mic access for this site, then tap again.', 'err');
+  }
+}
+
+function stopRecording(discard){
+  S._discard = !!discard;
+  S.recording = false;
+  resetRecordBtn();
+  if (S.recog){ try{ S.recog.stop(); }catch(e){} S.recog = null; }
+  if (S.recorder){ try{ S.recorder.stop(); }catch(e){} S.recorder = null; }
+}
+
+async function transcribe(blob, mime){
+  const st = settings();
+  const ext = (mime || '').includes('mp4') ? 'mp4' : (mime || '').includes('ogg') ? 'ogg' : 'webm';
+  const fd = new FormData();
+  fd.append('file', blob, 'note.' + ext);
+  const r = await fetch(st.workerUrl + '/transcribe', {method:'POST', headers: withCode({}), body: fd});
+  if (!r.ok) throw new Error('server said ' + r.status);
+  const j = await r.json();
+  return (j.text || '').trim();
+}
+
+// ═══════════════════════════════════════════════════
+// DEBRIEF QUESTIONS
+// ═══════════════════════════════════════════════════
+
+function renderQuestions(){
+  const answered = Object.values(S.answers).filter(v => v && v.trim()).length;
+  $('q-count').textContent = answered + ' / ' + QUESTIONS.length;
+  $('q-list').innerHTML = QUESTIONS.map((item, i) => {
+    let h = '';
+    if (item.section) h += `<div class="q-section">${esc(item.section)}</div>`;
+    h += `<div class="q-item">
+      <div class="q-text">${esc(item.q)}</div>
+      <textarea id="q${i}" oninput="saveAnswer(${i}, this.value)"
+        placeholder="Skip it if you have nothing here.">${esc(S.answers[i] || '')}</textarea>
+    </div>`;
+    return h;
+  }).join('') + `<div class="row" style="margin:18px 0 30px">
+      <button class="btn wide" onclick="go('deliver')">Done — send my notes ↗</button>
+    </div>`;
+}
+
+function saveAnswer(i, v){
+  S.answers[i] = v;
+  if (S.book) lsSet('br.answers.' + S.book.id, JSON.stringify(S.answers));
+  const answered = Object.values(S.answers).filter(x => x && x.trim()).length;
+  $('q-count').textContent = answered + ' / ' + QUESTIONS.length;
+}
+
+// ═══════════════════════════════════════════════════
+// DELIVERY
+// ═══════════════════════════════════════════════════
+
+function renderDeliver(){
+  const st = settings();
+  const card = $('deliver-worker-card');
+  if (st.workerUrl){
+    card.classList.remove('hidden');
+    $('deliver-worker-sub').textContent =
+      'Posts your notes to the author’s server at ' + st.workerUrl + '.';
+    $('deliver-send-btn').disabled = false;
+  } else {
+    card.classList.add('hidden');
+  }
+  status('d-status','');
+}
+
+function readerName(){
+  return (settings().name || ls('br.reader','') || 'reader').trim();
+}
+
+/** The note file format. Documented in NOTES_FORMAT.md — keep both in step. */
+function buildMarkdown(){
+  const b = S.book || {title:'Untitled', id:'book'};
+  const keys = Object.keys(S.notes).map(Number).sort((a,b)=>a-b);
+  const date = new Date().toISOString().slice(0,10);
+  let md = `# Beta Review: ${b.title}\n`;
+  md += `Reader: ${readerName()}\n`;
+  md += `Book: ${b.id}\n`;
+  md += `Session: ${date}\n\n`;
+
+  if (!keys.length) md += `_No passage notes._\n\n`;
+  keys.forEach((i, n) => {
+    md += `## Note ${n+1} — Passage ${i+1}\n`;
+    md += `> ${(S.notes[i].quote || '').replace(/\n/g,' ')}\n\n`;
+    md += `${S.notes[i].text}\n\n---\n\n`;
+  });
+
+  const answered = QUESTIONS.map((q,i) => ({q, a: (S.answers[i]||'').trim()})).filter(x => x.a);
+  if (answered.length){
+    md += `## Debrief\n\n`;
+    let sec = null;
+    answered.forEach(({q,a}) => {
+      if (q.section && q.section !== sec){ sec = q.section; md += `### ${sec}\n\n`; }
+      md += `**${q.q}**\n\n${a}\n\n`;
+    });
+  }
+  return md;
+}
+
+function buildJSON(){
+  const b = S.book || {};
+  return JSON.stringify({
+    book: {id: b.id, title: b.title, author: b.author, source: b.source},
+    reader: readerName(),
+    session: new Date().toISOString(),
+    notes: Object.keys(S.notes).map(Number).sort((a,b)=>a-b).map(i => ({
+      passage: i + 1, quote: S.notes[i].quote, note: S.notes[i].text, at: S.notes[i].at,
+    })),
+    debrief: QUESTIONS.map((q,i) => ({question: q.q, section: q.section || null, answer: S.answers[i] || ''}))
+              .filter(x => x.answer.trim()),
+  }, null, 2);
+}
+
+function downloadNotes(kind){
+  const b = S.book || {id:'book'};
+  const body = kind === 'json' ? buildJSON() : buildMarkdown();
+  const name = `${b.id}.${slug(readerName())}.REVIEW.${kind === 'json' ? 'json' : 'md'}`;
+  const blob = new Blob([body], {type: kind === 'json' ? 'application/json' : 'text/markdown'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  status('d-status', 'Saved ' + name + '.', 'ok');
+}
+
+async function copyNotes(){
+  try{
+    await navigator.clipboard.writeText(buildMarkdown());
+    status('d-status', 'Copied. Paste it into an email or a message.', 'ok');
+  }catch(e){
+    status('d-status', 'Clipboard blocked — use Download instead.', 'warn');
+  }
+}
+
+async function submitNotes(){
+  const st = settings();
+  if (!st.workerUrl) return status('d-status', 'No server configured.', 'warn');
+  const b = S.book || {};
+  $('deliver-send-btn').disabled = true;
+  status('d-status', '<span class="spinner"></span>Sending…');
+  try{
+    const r = await fetch(st.workerUrl + '/notes', {
+      method:'POST',
+      headers: withCode({'Content-Type':'application/json'}),
+      body: JSON.stringify({
+        reader: readerName(),
+        bookId: b.id,
+        bookTitle: b.title,
+        markdown: buildMarkdown(),
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.ok === false) throw new Error(j.error || ('server said ' + r.status));
+    status('d-status', 'Sent. Thank you — that is genuinely useful.', 'ok');
+  }catch(e){
+    status('d-status', 'Send failed: ' + e.message + '. Use Download and send the file instead.', 'err');
+  }finally{
+    $('deliver-send-btn').disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// SHARE LINK
+// ═══════════════════════════════════════════════════
+
+function shareFor(id){
+  getBook(id).then(b => {
+    if (!b) return;
+    $('sh-url').value   = /^https?:/.test(b.source || '') ? b.source : '';
+    $('sh-title').value = b.title || '';
+    $('sh-author').value= b.author || '';
+    $('sh-out').classList.add('hidden');
+    status('sh-status', /^https?:/.test(b.source || '') ? '' :
+      'This manuscript came from a local file, so it has no URL a reader could reach. Host the file somewhere readable and paste that URL.', 'warn');
+    go('share');
+  });
+}
+
+function buildShareLink(){
+  const url = $('sh-url').value.trim();
+  const title = $('sh-title').value.trim();
+  if (!url) return status('sh-status', 'A manuscript URL is required — that is what the reader fetches.', 'warn');
+  const base = location.origin + location.pathname;
+  const q = new URLSearchParams();
+  q.set('book', url);
+  if (title) q.set('title', title);
+  const author = $('sh-author').value.trim();
+  if (author) q.set('author', author);
+  q.set('id', slug(title || url));
+  $('sh-link').value = base + '?' + q.toString();
+  $('sh-out').classList.remove('hidden');
+  status('sh-status', 'Send that link to your reader. It opens straight into listen-and-comment mode.', 'ok');
+}
+
+async function copyShare(){
+  try{
+    await navigator.clipboard.writeText($('sh-link').value);
+    status('sh-status', 'Copied.', 'ok');
+  }catch(e){
+    $('sh-link').select();
+    status('sh-status', 'Select and copy manually.', 'warn');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// SETTINGS SCREEN
+// ═══════════════════════════════════════════════════
+
+function fillSettings(){
+  const st = settings();
+  $('set-name').value        = st.name;
+  $('set-provider').value    = st.provider;
+  $('set-worker-url').value  = st.workerUrl;
+  $('set-worker-code').value = st.accessCode;
+  $('set-voice-remote').value= st.remoteVoice;
+  $('set-theme').value       = ls('br.theme','auto');
+  primeVoices();
+  onProviderChange();
+}
+
+function onProviderChange(){
+  const worker = $('set-provider').value === 'worker';
+  $('set-worker-box').classList.toggle('hidden', !worker);
+  $('set-webspeech-box').classList.toggle('hidden', worker);
+}
+
+function saveSettings(){
+  saveSetting({
+    name:        $('set-name').value.trim(),
+    provider:    $('set-provider').value,
+    workerUrl:   $('set-worker-url').value.trim().replace(/\/+$/,''),
+    accessCode:  $('set-worker-code').value.trim(),
+    localVoice:  $('set-voice-local').value || '',
+    remoteVoice: $('set-voice-remote').value.trim() || 'nova',
+  });
+  if ($('set-name').value.trim()) lsSet('br.reader', $('set-name').value.trim());
+  S.cache = {};
+  status('set-status', 'Saved.', 'ok');
+  setTimeout(() => status('set-status',''), 2200);
+}
+
+async function testWorker(){
+  const url = $('set-worker-url').value.trim().replace(/\/+$/,'');
+  if (!url) return status('set-status', 'Enter the server URL first.', 'warn');
+  status('set-status', '<span class="spinner"></span>Testing…');
+  try{
+    const code = $('set-worker-code').value.trim();
+    const r = await fetch(url + '/health', {headers: code ? {'X-Access-Code': code} : {}});
+    const j = await r.json();
+    if (!r.ok) throw new Error('server said ' + r.status);
+    const bits = [];
+    bits.push(j.tts    ? 'voice ✓'         : 'voice ✗ (no TTS key set)');
+    bits.push(j.stt    ? 'transcription ✓' : 'transcription ✗');
+    bits.push(j.notes  ? 'note delivery ✓' : 'note delivery ✗ (no repo set)');
+    status('set-status', 'Connected — ' + bits.join(' · '), j.tts ? 'ok' : 'warn');
+  }catch(e){
+    status('set-status', 'Could not reach it: ' + e.message, 'err');
+  }
+}
+
+function wipeAll(){
+  if (!confirm('Erase every manuscript, note, and setting stored in this browser? This cannot be undone.')) return;
+  try{
+    Object.keys(localStorage).filter(k => k.indexOf('br.') === 0).forEach(k => lsDel(k));
+  }catch(e){}
+  try{ indexedDB.deleteDatabase(DB_NAME); }catch(e){}
+  location.href = location.origin + location.pathname;
+}
+
+// keep the settings screen's back button honest
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t && t.getAttribute && t.getAttribute('onclick') === "go('settings')")
+    S.settingsFrom = S.screen === 'settings' ? S.settingsFrom : S.screen;
+}, true);
+
+// don't lose a half-written note to a stray reload
+window.addEventListener('beforeunload', () => { persistNotes(); });
+</script>
+</body>
+</html>

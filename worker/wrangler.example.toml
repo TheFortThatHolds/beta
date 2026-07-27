@@ -1,0 +1,32 @@
+# Copy to wrangler.toml, then edit. wrangler.toml is gitignored so your
+# account id and repo name never end up in a public commit.
+#
+#   cp wrangler.example.toml wrangler.toml
+#   npx wrangler deploy
+#
+# Secrets are NOT set here. Set them with:
+#   npx wrangler secret put TTS_API_KEY
+#   npx wrangler secret put GITHUB_TOKEN     # only if you want /notes
+#   npx wrangler secret put ACCESS_CODE      # optional shared code
+
+name = "beta-reader"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+# Any OpenAI-compatible speech API. Point it wherever you like.
+TTS_API_BASE = "https://api.openai.com/v1"
+TTS_MODEL    = "tts-1"
+TTS_VOICE    = "alloy"
+STT_MODEL    = "whisper-1"
+
+# Where reader notes get committed. Leave blank to disable /notes entirely.
+# NOTES_REPO        = "your-name/your-notes-repo"
+NOTES_BRANCH_BASE = "main"
+NOTES_DIR         = "reviews"
+
+# Lock this down to the exact origin serving index.html once you know it,
+# e.g. "https://you.github.io". "*" is fine while you are testing.
+ALLOWED_ORIGINS = "*"
+
+MAX_TTS_CHARS = "2000"

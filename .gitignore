@@ -1,0 +1,24 @@
+# Your own settings — may contain a worker URL or access code. Keep it local.
+config.json
+
+# Wrangler: your account id, your repo names, your deploy state.
+worker/wrangler.toml
+worker/.wrangler/
+.wrangler/
+.dev.vars
+*.dev.vars
+
+# Never commit a key, a token, or an env file.
+.env
+.env.*
+
+# Manuscripts and real reader notes do not belong in this repo.
+manuscripts/
+reviews/
+*.REVIEW.md
+*.REVIEW.json
+
+# Junk
+node_modules/
+.DS_Store
+Thumbs.db

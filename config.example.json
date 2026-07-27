@@ -1,0 +1,23 @@
+{
+  "_comment": "Copy to config.json next to index.html. Every field is optional — delete what you don't need. Never put an API key in here; this file is served to every browser.",
+
+  "title": "Beta Reader",
+  "tagline": "Listen to a manuscript. Talk back at the exact line.",
+  "accent": "#6d3bd6",
+
+  "ttsProvider": "webspeech",
+  "workerUrl": "",
+  "accessCode": "",
+  "remoteVoice": "alloy",
+
+  "library": [
+    {
+      "id": "sample",
+      "title": "The Lighthouse at Kestrel Point",
+      "author": "Sample text shipped with this repo",
+      "url": "examples/the-lighthouse-at-kestrel-point.md"
+    }
+  ],
+
+  "questions": null
+}
