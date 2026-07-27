@@ -1,9 +1,19 @@
 # The review file format
 
-What Beta Reader exports, and what a downstream tool or agent can rely on.
+What Beta Reader writes, and what a downstream tool or agent can rely on.
 
-Two formats come out of the same session. Markdown is for humans and for agents reading prose;
-JSON is for anything programmatic.
+Three files matter:
+
+| File | Written by | Holds |
+|---|---|---|
+| `reviews/<book-id>.REVIEW.md` | one reader, on their own branch | that reader's notes |
+| `<book-id>.CONSOLIDATED.md` | the author side, after pulling every reader | all readers, grouped by passage |
+| `<book-id>.<reader>.REVIEW.json` | a reader's local download | the same review, machine-readable |
+
+Notes reach the author through the Worker: `POST /notes` commits one reader's file to their
+own `beta-<reader>` branch, and `GET /notes?bookId=` hands back every reader's file for one
+book. `GET /readers` lists who has submitted what. The app's collation screen is just those
+endpoints plus the grouping described below.
 
 ---
 

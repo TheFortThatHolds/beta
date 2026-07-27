@@ -15,6 +15,8 @@
  *   POST /tts          → audio/mpeg                     { text, voice?, speed?, model? }
  *   POST /transcribe   → { text }                       multipart form, field "file"
  *   POST /notes        → { ok, path, branch }           { reader, bookId, bookTitle, markdown }
+ *   GET  /notes?bookId= → [{ reader, markdown }]        every reader's notes for one book
+ *   GET  /readers      → [{ reader, books:[…] }]        who has submitted anything
  *
  * ── Environment ───────────────────────────────────────────────────────────
  *   Secrets   (wrangler secret put NAME)
@@ -75,6 +77,8 @@ export default {
       if (path === '/tts' && request.method === 'POST') return await handleTTS(request, env, headers);
       if (path === '/transcribe' && request.method === 'POST') return await handleSTT(request, env, headers);
       if (path === '/notes' && request.method === 'POST') return await handleNotes(request, env, headers);
+      if (path === '/notes' && request.method === 'GET') return await handleCollate(url, env, headers);
+      if (path === '/readers' && request.method === 'GET') return await handleReaders(env, headers);
     } catch (err) {
       return json({ error: err.message || 'Server error' }, 500, headers);
     }
@@ -189,6 +193,59 @@ async function handleNotes(request, env, headers) {
 
   await gh(`repos/${repo}/contents/${filePath}`, { method: 'PUT', body: JSON.stringify(payload) });
   return json({ ok: true, branch, path: filePath }, 200, headers);
+}
+
+// ── GET /notes?bookId= — pull every reader's file for one book ────────────
+async function handleCollate(url, env, headers) {
+  if (!env.GITHUB_TOKEN || !env.NOTES_REPO) {
+    return json({ error: 'Note storage is not configured on this server (GITHUB_TOKEN + NOTES_REPO)' }, 501, headers);
+  }
+  const bookId = safeSlug(url.searchParams.get('bookId') || '');
+  if (!bookId || bookId === 'x') return json({ error: 'Missing bookId' }, 400, headers);
+
+  const repo = env.NOTES_REPO;
+  const dir = cfg(env, 'NOTES_DIR');
+  const gh = p => ghApi(env.GITHUB_TOKEN, p);
+
+  const branches = await gh(`repos/${repo}/branches?per_page=100`);
+  const readerBranches = branches.filter(b => b.name.startsWith('beta-'));
+
+  const results = await Promise.all(readerBranches.map(async b => {
+    try {
+      const f = await gh(`repos/${repo}/contents/${dir}/${bookId}.REVIEW.md?ref=${b.name}`);
+      return { reader: b.name.slice(5), branch: b.name, markdown: b64decode(f.content) };
+    } catch (_) {
+      return null;   // this reader has not submitted on this book
+    }
+  }));
+
+  return json(results.filter(Boolean), 200, { ...headers, 'Cache-Control': 'no-store' });
+}
+
+// ── GET /readers — who exists, and what they have submitted ───────────────
+async function handleReaders(env, headers) {
+  if (!env.GITHUB_TOKEN || !env.NOTES_REPO) {
+    return json({ error: 'Note storage is not configured on this server (GITHUB_TOKEN + NOTES_REPO)' }, 501, headers);
+  }
+  const repo = env.NOTES_REPO;
+  const dir = cfg(env, 'NOTES_DIR');
+  const gh = p => ghApi(env.GITHUB_TOKEN, p);
+
+  const branches = await gh(`repos/${repo}/branches?per_page=100`);
+  const out = await Promise.all(
+    branches.filter(b => b.name.startsWith('beta-')).map(async b => {
+      let books = [];
+      try {
+        const listing = await gh(`repos/${repo}/contents/${dir}?ref=${b.name}`);
+        books = (Array.isArray(listing) ? listing : [])
+          .filter(f => f.name.endsWith('.REVIEW.md'))
+          .map(f => f.name.replace(/\.REVIEW\.md$/, ''));
+      } catch (_) { /* no reviews dir on this branch yet */ }
+      return { reader: b.name.slice(5), branch: b.name, books };
+    })
+  );
+
+  return json(out, 200, { ...headers, 'Cache-Control': 'no-store' });
 }
 
 async function ghApi(token, path, { method = 'GET', body = null } = {}) {

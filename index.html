@@ -305,20 +305,20 @@
     <h1>Send your notes</h1>
   </div>
 
-  <div class="card">
-    <h2>Download</h2>
-    <p class="sub" style="margin:6px 0 12px">Saves a Markdown file you can email or drop in a folder. Always works.</p>
-    <div class="row">
-      <button class="btn sm" onclick="downloadNotes('md')">Download .md</button>
-      <button class="btn ghost sm" onclick="downloadNotes('json')">Download .json</button>
-      <button class="btn ghost sm" onclick="copyNotes()">Copy to clipboard</button>
-    </div>
-  </div>
-
   <div class="card" id="deliver-worker-card">
     <h2>Send to the author</h2>
     <p class="sub" style="margin:6px 0 12px" id="deliver-worker-sub">—</p>
-    <button class="btn sm" id="deliver-send-btn" onclick="submitNotes()">Send notes</button>
+    <button class="btn" id="deliver-send-btn" onclick="submitNotes()">Send notes</button>
+  </div>
+
+  <div class="card">
+    <h2 class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.06em">Keep a copy</h2>
+    <p class="sub" style="margin:6px 0 12px">Your own record, or a way to hand the notes over if sending fails.</p>
+    <div class="row">
+      <button class="btn ghost sm" onclick="downloadNotes('md')">Download .md</button>
+      <button class="btn ghost sm" onclick="downloadNotes('json')">Download .json</button>
+      <button class="btn ghost sm" onclick="copyNotes()">Copy</button>
+    </div>
   </div>
 
   <div class="status" id="d-status"></div>
@@ -352,6 +352,33 @@
     </div>
   </div>
   <div class="status" id="sh-status"></div>
+</div>
+
+<!-- ══ COLLATED READER NOTES (author side) ══════════ -->
+<div class="screen" id="s-collate">
+  <div class="topbar">
+    <button class="btn icon" onclick="go('library')">←</button>
+    <div style="flex:1; min-width:0">
+      <h1 style="font-size:1rem">What the readers said</h1>
+      <div class="sub" id="c-sub">—</div>
+    </div>
+    <button class="btn icon" onclick="loadCollated()" title="Refresh">⟳</button>
+  </div>
+
+  <div class="row" style="margin-bottom:12px; align-items:center">
+    <input type="text" id="c-bookid" placeholder="book id" style="flex:1; font-size:.85rem"
+           onkeydown="if(event.key==='Enter')loadCollated()">
+    <button class="btn sm" onclick="loadCollated()">Pull</button>
+  </div>
+
+  <div class="list" id="c-list"></div>
+
+  <div class="row" style="margin-top:12px">
+    <button class="btn ghost sm" onclick="downloadCollated()">Download consolidated .md</button>
+    <div class="spacer"></div>
+    <button class="btn ghost sm" onclick="copyCollated()">Copy</button>
+  </div>
+  <div class="status" id="c-status"></div>
 </div>
 
 <!-- ══ SETTINGS ═════════════════════════════════════ -->
@@ -717,6 +744,7 @@ async function renderLibrary(){
         </div>
         <div class="row tight" style="margin-top:11px">
           <button class="btn ghost sm" onclick="event.stopPropagation();shareFor('${esc(b.id)}')">Invite a reader</button>
+          <button class="btn ghost sm" onclick="event.stopPropagation();collateFor('${esc(b.id)}')">Reader notes</button>
           <div class="spacer"></div>
           <button class="btn ghost sm" onclick="event.stopPropagation();removeBook('${esc(b.id)}')">Remove</button>
         </div>
@@ -1375,7 +1403,7 @@ function renderDeliver(){
   if (st.workerUrl){
     card.classList.remove('hidden');
     $('deliver-worker-sub').textContent =
-      'Posts your notes to the author’s server at ' + st.workerUrl + '.';
+      'Files your notes straight to the author. Nothing else for you to do.';
     $('deliver-send-btn').disabled = false;
   } else {
     card.classList.add('hidden');
@@ -1519,6 +1547,246 @@ async function copyShare(){
   }catch(e){
     $('sh-link').select();
     status('sh-status', 'Select and copy manually.', 'warn');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// COLLATION — every reader's notes, in one place
+//
+// This is the author side of the loop. Notes live as one branch per
+// reader in a repo; the server walks those branches and hands back each
+// reader's raw review file. Everything below is the grouping: same
+// passage, all readers, side by side.
+// ═══════════════════════════════════════════════════
+
+let COLLATED = null;
+
+function collateFor(id){
+  getBook(id).then(b => {
+    if (!b) return;
+    S.book = b;
+    $('c-bookid').value = slug(b.title);
+    $('c-sub').textContent = b.title;
+    COLLATED = null;
+    $('c-list').innerHTML = '';
+    go('collate');
+    loadCollated();
+  });
+}
+
+async function loadCollated(){
+  const st = settings();
+  const bookId = $('c-bookid').value.trim();
+  if (!st.workerUrl){
+    $('c-list').innerHTML = `<div class="empty">
+      No notes server configured.<br><br>
+      Set the server URL in Settings — that is what holds your readers' notes.
+    </div>`;
+    return;
+  }
+  if (!bookId) return status('c-status','Enter the book id readers submitted under.','warn');
+
+  status('c-status','<span class="spinner"></span>Pulling every reader…');
+  try{
+    const r = await fetch(st.workerUrl + '/notes?bookId=' + encodeURIComponent(bookId), {headers: withCode({})});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || ('server said ' + r.status));
+    COLLATED = collate(data);
+    renderCollated();
+    status('c-status', COLLATED.readers.length
+      ? COLLATED.readers.length + ' reader' + (COLLATED.readers.length===1?'':'s') + ' · ' +
+        COLLATED.passages.length + ' passage' + (COLLATED.passages.length===1?'':'s') + ' noted'
+      : '', 'ok');
+  }catch(e){
+    status('c-status','Could not pull notes: ' + e.message, 'err');
+  }
+}
+
+/** Parse one exported review file. A file may hold several appended sessions. */
+function parseReview(md, fallbackReader){
+  const chunks = String(md).split(/^#\s+Beta Review:/m).slice(1);
+  const source = chunks.length ? chunks : [String(md)];
+  const out = [];
+
+  source.forEach(chunk => {
+    const reader = (chunk.match(/^Reader:\s*(.+)$/m) || [,fallbackReader || 'reader'])[1].trim();
+    const date   = (chunk.match(/^Session:\s*(.+)$/m) || [,''])[1].trim();
+    const notes = [], debrief = [];
+
+    chunk.split(/^##\s+/m).slice(1).forEach(part => {
+      const head = part.split('\n')[0].trim();
+      const rest = part.split('\n').slice(1);
+
+      const m = head.match(/^Note\s+\d+\s*[—–-]\s*Passage\s+(\d+)/i);
+      if (m){
+        const passage = parseInt(m[1], 10);
+        let i = 0; const quote = [];
+        while (i < rest.length && (!rest[i].trim() || rest[i].startsWith('>'))){
+          if (rest[i].startsWith('>')) quote.push(rest[i].replace(/^>\s?/,''));
+          i++;
+        }
+        const body = [];
+        for (; i < rest.length; i++){
+          if (/^-{3,}\s*$/.test(rest[i].trim())) break;
+          body.push(rest[i]);
+        }
+        const text = body.join('\n').trim();
+        if (text) notes.push({passage, quote: quote.join(' ').trim(), text});
+        return;
+      }
+
+      if (/^Debrief/i.test(head)){
+        let section = null, q = null, buf = [];
+        const push = () => { if (q && buf.join('\n').trim()) debrief.push({section, q, a: buf.join('\n').trim()}); buf = []; };
+        rest.forEach(line => {
+          const sec = line.match(/^###\s+(.+)$/);
+          if (sec){ push(); q = null; section = sec[1].trim(); return; }
+          const qm = line.match(/^\*\*(.+?)\*\*\s*$/);
+          if (qm){ push(); q = qm[1].trim(); return; }
+          if (q) buf.push(line);
+        });
+        push();
+      }
+    });
+
+    if (notes.length || debrief.length) out.push({reader, date, notes, debrief});
+  });
+  return out;
+}
+
+/** Group every reader's sessions into one passage-ordered view. */
+function collate(files){
+  const readers = [], byPassage = new Map(), byQuestion = new Map();
+
+  (files || []).forEach(f => {
+    parseReview(f.markdown, f.reader).forEach(sess => {
+      const who = sess.reader || f.reader || 'reader';
+      if (!readers.includes(who)) readers.push(who);
+
+      sess.notes.forEach(n => {
+        if (!byPassage.has(n.passage)) byPassage.set(n.passage, {passage: n.passage, quote: '', notes: []});
+        const slot = byPassage.get(n.passage);
+        if (n.quote.length > slot.quote.length) slot.quote = n.quote;
+        slot.notes.push({reader: who, text: n.text, date: sess.date});
+      });
+
+      sess.debrief.forEach(d => {
+        if (!byQuestion.has(d.q)) byQuestion.set(d.q, {q: d.q, section: d.section, answers: []});
+        byQuestion.get(d.q).answers.push({reader: who, a: d.a});
+      });
+    });
+  });
+
+  return {
+    readers,
+    passages: [...byPassage.values()].sort((a,b) => a.passage - b.passage),
+    questions: [...byQuestion.values()],
+  };
+}
+
+const distinctReaders = p => new Set(p.notes.map(n => n.reader)).size;
+
+function renderCollated(){
+  const el = $('c-list');
+  if (!COLLATED || (!COLLATED.passages.length && !COLLATED.questions.length)){
+    el.innerHTML = `<div class="empty">
+      Nothing submitted yet for this book id.<br><br>
+      Check the id matches what the reader link used.
+    </div>`;
+    return;
+  }
+
+  let html = '';
+  if (COLLATED.readers.length){
+    html += `<div class="card"><div class="tiny muted">Readers</div>
+      <div style="margin-top:5px">${COLLATED.readers.map(r => esc(r)).join(' · ')}</div></div>`;
+  }
+
+  // Passages more than one READER hit are where the signal is — lead with a marker.
+  // (One reader leaving two notes across two sessions is not consensus.)
+  COLLATED.passages.forEach(p => {
+    const n = distinctReaders(p);
+    const multi = n > 1;
+    html += `<div class="note-item"${multi ? ' style="border-color:var(--accent)"' : ''}>
+      <div class="note-head">Passage ${p.passage}${multi ? ` · ${n} readers` : ''}</div>
+      ${p.quote ? `<div class="note-quote">${esc(p.quote.slice(0,220))}${p.quote.length>220?'…':''}</div>` : ''}
+      ${p.notes.map(n => `<div style="margin-top:9px">
+        <div class="tiny" style="color:var(--accent);font-weight:700">${esc(n.reader)}</div>
+        <div class="note-body">${esc(n.text)}</div>
+      </div>`).join('')}
+    </div>`;
+  });
+
+  if (COLLATED.questions.length){
+    let sec = null;
+    html += `<div class="q-section">Debrief</div>`;
+    COLLATED.questions.forEach(q => {
+      if (q.section && q.section !== sec){ sec = q.section; html += `<div class="q-section">${esc(sec)}</div>`; }
+      html += `<div class="note-item">
+        <div class="note-head">${esc(q.q)}</div>
+        ${q.answers.map(a => `<div style="margin-top:9px">
+          <div class="tiny" style="color:var(--accent);font-weight:700">${esc(a.reader)}</div>
+          <div class="note-body">${esc(a.a)}</div>
+        </div>`).join('')}
+      </div>`;
+    });
+  }
+
+  el.innerHTML = html;
+}
+
+function buildCollatedMarkdown(){
+  if (!COLLATED) return '';
+  const title = (S.book && S.book.title) || $('c-bookid').value.trim();
+  let md = `# Consolidated beta notes: ${title}\n`;
+  md += `Readers: ${COLLATED.readers.join(', ') || '—'}\n`;
+  md += `Pulled: ${new Date().toISOString().slice(0,10)}\n\n`;
+
+  const multi = COLLATED.passages.filter(p => distinctReaders(p) > 1);
+  if (multi.length){
+    md += `_${multi.length} passage${multi.length===1?'':'s'} drew notes from more than one reader: ` +
+          multi.map(p => p.passage).join(', ') + `._\n\n`;
+  }
+
+  COLLATED.passages.forEach(p => {
+    const n = distinctReaders(p);
+    md += `## Passage ${p.passage}${n > 1 ? ` — ${n} readers` : ''}\n`;
+    if (p.quote) md += `> ${p.quote}\n\n`;
+    p.notes.forEach(n => { md += `**${n.reader}:** ${n.text}\n\n`; });
+    md += `---\n\n`;
+  });
+
+  if (COLLATED.questions.length){
+    md += `## Debrief\n\n`;
+    let sec = null;
+    COLLATED.questions.forEach(q => {
+      if (q.section && q.section !== sec){ sec = q.section; md += `### ${sec}\n\n`; }
+      md += `**${q.q}**\n\n`;
+      q.answers.forEach(a => { md += `- **${a.reader}:** ${a.a}\n`; });
+      md += `\n`;
+    });
+  }
+  return md;
+}
+
+function downloadCollated(){
+  if (!COLLATED) return status('c-status','Pull the notes first.','warn');
+  const name = slug($('c-bookid').value.trim() || 'book') + '.CONSOLIDATED.md';
+  const blob = new Blob([buildCollatedMarkdown()], {type:'text/markdown'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  status('c-status','Saved ' + name + '.','ok');
+}
+
+async function copyCollated(){
+  if (!COLLATED) return status('c-status','Pull the notes first.','warn');
+  try{
+    await navigator.clipboard.writeText(buildCollatedMarkdown());
+    status('c-status','Copied — paste it straight into your agent.','ok');
+  }catch(e){
+    status('c-status','Clipboard blocked — use Download.','warn');
   }
 }
 

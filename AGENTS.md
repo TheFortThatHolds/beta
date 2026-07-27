@@ -1,245 +1,236 @@
-# AGENTS.md — setting up Beta Reader for your human
+# AGENTS.md — install Beta Reader for your human
 
-You are reading this because someone pointed you at this repo and asked you to set it up.
-This file is the whole playbook. You should not need to read `index.html` to do the job.
+Someone pointed you at this repo and asked you to set it up. This file is the whole job.
+You should not need to read `index.html` to do it.
 
-Works with any coding agent — Claude Code, Codex, Cursor, Aider, whatever you are.
-
----
-
-## What this thing is
-
-A single-file web app that reads a manuscript aloud and lets a listener pin spoken or typed
-notes to the exact passage they're reacting to. It exports a Markdown review file.
-
-**The most important fact: it already works.** `index.html` with no configuration at all is a
-functioning app. Your job is not to make it run — it runs. Your job is to find out which of
-three or four small upgrades this particular person actually needs, and do only those.
-
-**Do not add a build step. Do not add dependencies. Do not add a framework.** The no-build,
-no-dependency shape is the feature — it's what lets this keep working years from now with
-nobody maintaining it. If you're tempted to introduce npm, TypeScript, React, or a bundler,
-you've misread the brief.
+Works with any coding agent — Claude Code, Codex, Cursor, Aider.
 
 ---
 
-## Step 1 — Ask, don't assume
+## What you're building
 
-Ask these, one at a time, in this order. Stop as soon as you have enough. Most people need
-only the first two.
+A listen-and-comment loop for manuscripts:
 
-1. **"Do you want to send this to other people, or is it just for you?"**
-   - Just them → they can open `index.html` from disk. You may be done already.
-   - Other people → they need it hosted. Go to Step 2.
-
-2. **"Is the built-in browser voice good enough, or do you want better narration?"**
-   - Good enough → no server, no key, no cost. Strongly prefer this. Say so.
-   - Wants better → they'll need an API key and a deployed Worker. Go to Step 3.
-   - **Default to the browser voice.** It's free, private, and can't break. Only escalate if
-     they've heard it and specifically don't like it.
-
-3. **"When a reader finishes, how do you want their notes to reach you?"**
-   - A downloaded file they email back → nothing to build. This is the default.
-   - Committed automatically into a GitHub repo → they need the Worker plus a GitHub token.
-
-4. **"Do you have specific books to load, or will you add them by hand each time?"**
-   - Specific books at stable URLs → put them in `config.json` so they appear on the library
-     screen automatically.
-
-Now go do only what those answers require.
-
----
-
-## Step 2 — Hosting
-
-One static file, no build. Pick whichever the person already uses.
-
-**GitHub Pages** (simplest if the repo is already on GitHub):
-```bash
-git push
-# then: repo → Settings → Pages → Source: Deploy from a branch → main → / (root)
 ```
-Site lands at `https://<user>.github.io/<repo>/`.
-
-**Cloudflare Pages:**
-```bash
-npx wrangler pages deploy . --project-name beta-reader
+index.html  →  reader link  →  reader listens & talks  →  Worker  →  notes repo
+                                                                        │
+                                          "Reader notes" ←──────────────┘
+                                                 │
+                                    consolidated .md → the author's agent
 ```
 
-**Netlify:**
-```bash
-npx netlify deploy --prod --dir .
-```
+Two artifacts: **one static HTML file** and **one Cloudflare Worker**. That's the entire system.
 
-**Local only:** `open index.html`. Everything works except reader links (a reader can't open a
-file on someone else's laptop).
+**The person you're installing for uses AI agents.** Don't write them a tutorial, don't offer
+a no-server "easy mode", don't ask permission for each step. Install it, verify it, tell them
+the one loop they need to know. If something needs their hands — an API key, a token, a
+Cloudflare login — say exactly what you need and why, in one line.
 
-Verify by loading the URL and confirming the library screen renders.
+**Hard constraints. Do not violate these:**
+
+- **No build step. No package manager. No framework. No dependencies.** `index.html` is served
+  as-is by any static host. That's not a limitation to route around, it's the reason this still
+  works in five years with nobody maintaining it. If you find yourself adding npm, TypeScript,
+  React, or a bundler, you have misread the brief.
+- **Never take a raw key or token into your own context.** Run the `wrangler secret put`
+  command and let the human paste at the prompt. Never write a key to a file, never echo one
+  back, never put one in `config.json` (that file is served to every browser).
 
 ---
 
-## Step 3 — `config.json` (optional presets)
+## Install
 
-If `config.json` sits next to `index.html`, the app reads it at load. It's the clean way to
-preset things so the person doesn't have to touch the Settings screen. Copy
-`config.example.json` and edit. **Every field is optional.**
+### 1. Notes repo
+
+Reader notes need somewhere to land. Ask which repo — or make one, private is fine. You need
+`owner/repo`.
+
+### 2. Deploy the Worker
+
+```bash
+cd worker
+cp wrangler.example.toml wrangler.toml     # gitignored — account-specific values stay local
+```
+
+Edit `wrangler.toml`:
+
+```toml
+NOTES_REPO      = "owner/notes-repo"
+ALLOWED_ORIGINS = "*"                      # tighten in step 5
+TTS_API_BASE    = "https://api.openai.com/v1"   # or any OpenAI-compatible speech API
+TTS_VOICE       = "alloy"
+```
+
+Then:
+
+```bash
+npx wrangler deploy
+```
+
+Keep the Worker URL it prints.
+
+### 3. Secrets
+
+```bash
+npx wrangler secret put TTS_API_KEY     # narration + speech-to-text
+npx wrangler secret put GITHUB_TOKEN    # so notes can commit
+npx wrangler secret put ACCESS_CODE     # optional; gates the endpoints
+```
+
+`GITHUB_TOKEN` must be a **fine-grained** PAT, scoped to the notes repo only, **Contents:
+Read and write**. Nothing else. If the human doesn't have one, give them the exact settings
+path and wait — don't improvise around it.
+
+### 4. Host the app
+
+Static file, no build command, output directory is the repo root.
+
+```bash
+# GitHub Pages: push, then Settings → Pages → Deploy from a branch → main → / (root)
+npx wrangler pages deploy . --project-name beta-reader     # Cloudflare Pages
+npx netlify deploy --prod --dir .                          # Netlify
+```
+
+### 5. Wire it together
+
+```bash
+cp config.example.json config.json
+```
 
 ```json
 {
   "title": "Beta Reader",
-  "tagline": "Listen to a manuscript. Talk back at the exact line.",
-  "accent": "#6d3bd6",
-
-  "workerUrl": "",
-  "accessCode": "",
-  "ttsProvider": "webspeech",
-  "remoteVoice": "alloy",
-
-  "library": [
-    { "id": "book-one", "title": "Book One", "author": "A. Writer",
-      "url": "https://example.com/book-one.md" }
-  ],
-
-  "questions": null
+  "workerUrl": "https://beta-reader.<subdomain>.workers.dev",
+  "ttsProvider": "worker",
+  "remoteVoice": "alloy"
 }
 ```
 
+Then go back and lock CORS down to the real site origin, and redeploy:
+
+```toml
+ALLOWED_ORIGINS = "https://them.github.io"
+```
+
+```bash
+cd worker && npx wrangler deploy
+```
+
+---
+
+## `config.json`
+
+Optional, read at page load, sits next to `index.html`. Every field is optional. Settings the
+human changes in-app override it on that device — it's the default, not a lock.
+
 | Field | Meaning |
 |---|---|
-| `title` / `tagline` | Header text and browser tab title. |
+| `title` / `tagline` | Header text and tab title. |
 | `accent` | Any CSS colour. Themes the whole app. |
-| `workerUrl` | Voice server base URL. Empty = browser voice. No trailing slash. |
-| `accessCode` | Only if the Worker was deployed with `ACCESS_CODE` set. |
-| `ttsProvider` | `"webspeech"` or `"worker"`. |
-| `remoteVoice` | Voice name the speech provider expects, e.g. `alloy`, `nova`. |
-| `library` | Books offered on the library screen. `url` must be publicly fetchable and CORS-readable. |
-| `questions` | Replaces the built-in debrief set. `[{ "section": "...", "q": "..." }, ...]` — `section` starts a new group, `q` is the question. `null` keeps the built-in twenty. |
+| `workerUrl` | Worker base URL. No trailing slash. |
+| `accessCode` | Only if you set `ACCESS_CODE` on the Worker. |
+| `ttsProvider` | `"worker"` or `"webspeech"`. |
+| `remoteVoice` | Voice name the speech provider expects. |
+| `library` | `[{id, title, author, url}]` — books offered on the library screen. |
+| `questions` | `[{section?, q}]` replacing the built-in debrief. `null` keeps the default twenty. |
 
-Settings a person changes in the app override `config.json` on that device. `config.json` is
-the default, not a lock.
-
-**Note on manuscript URLs:** the browser fetches them directly, so the host must send
-permissive CORS headers. `raw.githubusercontent.com` on a public repo works. A private repo
-does not — for private manuscripts, either host the file behind a URL they control or have
-them add books by file upload.
+**Never put a key in here.** It's public to every visitor.
 
 ---
 
-## Step 4 — The Worker (only if Step 1 said so)
+## Verify — actually run this
 
-Skip this entirely unless they want better narration, transcription, or auto-committed notes.
+Don't report a checklist you didn't execute.
 
-```bash
-cd worker
-cp wrangler.example.toml wrangler.toml     # gitignored — safe for account-specific values
-npx wrangler deploy
-```
-
-Then set secrets. **You set these by running the commands so the human can paste the value into
-the prompt — never take a raw key into your own context, never write one into a file, never put
-one in `config.json` or `wrangler.toml`.**
-
-```bash
-npx wrangler secret put TTS_API_KEY      # enables /tts and /transcribe
-npx wrangler secret put GITHUB_TOKEN     # only if notes should commit to a repo
-npx wrangler secret put ACCESS_CODE      # optional shared code to gate the endpoints
-```
-
-`GITHUB_TOKEN` should be a **fine-grained** personal access token scoped to exactly the one
-notes repo, with **Contents: Read and write**. Nothing else.
-
-Non-secret settings go in `wrangler.toml` under `[vars]` — see `wrangler.example.toml` for the
-full annotated list. The ones that matter:
-
-- `NOTES_REPO` — `owner/repo` that receives notes. Blank disables `/notes`.
-- `ALLOWED_ORIGINS` — set this to the exact site origin once hosting is settled. Leave `*`
-  only while testing.
-- `TTS_API_BASE` — any OpenAI-compatible speech API, not just OpenAI's.
-
-Finally, wire the app to it: set `workerUrl` and `"ttsProvider": "worker"` in `config.json`, or
-have the person enter it in Settings → Voice server URL.
-
-**Verify:** open the app → Settings → Test connection. It reports three capabilities:
-
-```
-Connected — voice ✓ · transcription ✓ · note delivery ✓
-```
-
-An ✗ means that env var isn't set. `curl https://<worker>/health` returns the same as JSON.
+- [ ] App loads at its final URL; library screen renders.
+- [ ] Settings → **Test connection** → `voice ✓ · transcription ✓ · note delivery ✓`.
+      An ✗ names the missing env var. `curl https://<worker>/health` says the same in JSON.
+- [ ] Add `examples/the-lighthouse-at-kestrel-point.md`, press Play, hear it, watch the active
+      passage track.
+- [ ] **Add note here** saves; the note appears on the Notes screen.
+- [ ] Build a reader link (a book → **Invite a reader**), open it in a private window, confirm
+      it loads the manuscript, leave a note, press **Send notes**.
+- [ ] Check the notes repo: branch `beta-<name>`, file `reviews/<book-id>.REVIEW.md`.
+- [ ] Back in the app: the book → **Reader notes** → the note you just left comes back.
+- [ ] `git status` clean of secrets — no `config.json` with a key, no committed
+      `wrangler.toml`, no token in history.
 
 ---
 
-## Step 5 — Verify, honestly
+## The loop to hand back
 
-Before you tell them it's done, actually check:
+Close with this and nothing more:
 
-- [ ] The app loads at its final URL and the library screen renders.
-- [ ] A manuscript can be added (file, URL, or paste) and appears in the library.
-- [ ] Play speaks, and the active passage highlights and scrolls.
-- [ ] "Add note here" saves a note, and the note shows on the Notes screen.
-- [ ] Download `.md` produces a review file with the notes in it.
-- [ ] If a Worker was deployed: Test connection reports what you expect.
-- [ ] If a reader link was built: open it in a private window and confirm it reaches the
-      welcome screen and loads the manuscript.
-- [ ] `git status` is clean of secrets — no `config.json` with a key, no `wrangler.toml`
-      committed, no token in history.
-
-If something doesn't work, say so plainly and fix it. Don't report a green checklist you
-didn't run.
+> Put the manuscript at a public URL → **Invite a reader** → send the link.
+> They listen and talk. Notes file themselves into `<repo>`, one branch per reader.
+> When you want them: the book → **Reader notes** → **Download consolidated .md** → give it
+> to your agent.
 
 ---
 
 ## Reader links
 
-The author builds these in the app: library → a book → **Invite a reader**. Or construct one
-directly:
+Built in-app (a book → **Invite a reader**), or by hand:
 
 ```
-https://<host>/index.html?book=<manuscript-url>&title=<title>&author=<author>&id=<book-id>
+https://<host>/?book=<manuscript-url>&title=<title>&author=<author>&id=<book-id>
 ```
 
 | Param | Required | Notes |
 |---|---|---|
-| `book` (or `src`) | yes | URL-encoded manuscript URL. Must be CORS-readable. |
+| `book` (or `src`) | yes | URL-encoded manuscript URL, publicly fetchable and CORS-readable. |
 | `title` | no | Shown on the welcome screen. |
 | `author` | no | Shown under the title. |
-| `id` | no | Stable id used in the exported filename. Derived from the title if omitted. |
+| `id` | no | The book id notes file under. Defaults to a slug of the title — **keep it stable**, it's the key the author collates on. |
 
-Any URL with `book` set puts the app in **reader mode**: no library, no settings clutter —
-name, listen, note, debrief, send.
+Any URL carrying `book` puts the app in reader mode: name, listen, note, debrief, send. No
+library, no settings clutter.
 
----
-
-## The review file
-
-Documented in [`NOTES_FORMAT.md`](NOTES_FORMAT.md). Read that before writing anything that
-consumes reader notes. Short version: a `#` header block with `Reader:` / `Book:` / `Session:`,
-then `## Note N — Passage M` sections each carrying a `>` quote of the passage and the note
-body, then an optional `## Debrief`.
-
-Passage numbers are 1-based indices into the parsed unit list (headings count as units), not
-line numbers, not chapter numbers. To map a note back to the manuscript, parse the file the
-same way the app does — split on blank lines, treat `#` lines as their own unit, skip fenced
-code blocks, `<!-- -->` comment lines, and horizontal rules. The `>` quote in each note is the
-reliable anchor; use it, and treat the number as a hint.
+**Manuscript hosting:** the reader's browser fetches the URL directly, so it needs permissive
+CORS. `raw.githubusercontent.com` on a public repo works. A private repo does not — the browser
+has no credentials. For private manuscripts, serve the file from something the author controls.
 
 ---
 
-## Working on the code itself
+## Worker API
 
-If you're modifying rather than deploying:
+| Route | Purpose |
+|---|---|
+| `GET /health` | `{ok, tts, stt, notes}` — capability probe. |
+| `POST /tts` | `{text, voice?, speed?, model?}` → `audio/mpeg`. |
+| `POST /transcribe` | multipart, field `file` → `{text}`. |
+| `POST /notes` | `{reader, bookId, bookTitle, markdown}` → commits, appending to any existing file. |
+| `GET /notes?bookId=` | `[{reader, branch, markdown}]` — every reader's file for one book. |
+| `GET /readers` | `[{reader, branch, books[]}]` — who has submitted what. |
 
-- `index.html` is the entire app. HTML, then CSS in one `<style>`, then JS in one `<script>`.
-  Sections are marked with `══` banner comments.
-- No dependencies, no build, no bundler, no transpiler. Plain ES2020 that browsers run directly.
-- Screens are `<div class="screen" id="s-name">`; `go('name')` switches between them.
-- Persistence: manuscripts in IndexedDB (`beta-reader` / `books`), everything else in
-  localStorage under the `br.` prefix.
-- Playback is a generation-counter loop — `S.gen` increments on every pause, jump, or rate
-  change so stale async callbacks can't resurrect old audio. If you touch playback, respect it.
-- Two speech engines behind one interface: `speakViaBrowser` and `speakViaWorker`. Adding a
-  third means adding a case to `speakUnit`, nothing more.
+`ACCESS_CODE`, if set, is required on every route except `/health` via the `X-Access-Code`
+header.
 
-**Never commit:** an API key, a token, a `config.json` containing one, a personal `wrangler.toml`,
-a manuscript you don't own, or anyone's real notes. `.gitignore` covers the usual ones — check
-anyway before you push. This is a public repo shape; treat it as one.
+---
+
+## Consuming the notes
+
+See [`NOTES_FORMAT.md`](NOTES_FORMAT.md) before you write anything that reads reader notes.
+The one rule that matters: **match on the quoted passage, not the passage number.** Indices
+shift the moment the manuscript is edited; the quote still finds its place.
+
+---
+
+## Modifying the code
+
+- `index.html` is the whole app — HTML, one `<style>`, one `<script>`. Sections carry `══`
+  banner comments.
+- Plain ES2020 that browsers run directly. No transpiler.
+- Screens are `<div class="screen" id="s-name">`; `go('name')` switches.
+- Storage: manuscripts in IndexedDB (`beta-reader`/`books`), everything else localStorage under
+  the `br.` prefix.
+- Playback is a generation-counter loop — `S.gen` increments on every pause, jump, and rate
+  change so stale async callbacks can't resurrect old audio. Respect it if you touch playback.
+- Two speech engines behind one interface (`speakViaBrowser`, `speakViaWorker`). A third means
+  one more case in `speakUnit` and nothing else.
+- Collation lives in `parseReview` → `collate` → `renderCollated` / `buildCollatedMarkdown`.
+  `parseReview` handles files containing several appended sessions.
+
+**Never commit:** a key, a token, a `config.json` holding one, a personal `wrangler.toml`, a
+manuscript that isn't yours, or anyone's real notes. `.gitignore` covers the usual suspects —
+check anyway.

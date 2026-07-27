@@ -1,58 +1,61 @@
 ---
 name: setup-beta-reader
-description: Set up the Beta Reader app for whoever is running this session — host it, configure it, optionally deploy the voice/notes Worker, and verify it works end to end. Use when someone says "set up the beta reader", "get this running", "deploy this", "help me send this to a reader", or opens this repo not knowing what to do with it.
+description: Install Beta Reader end to end — deploy the Worker, wire the notes repo, host the app, and verify the whole loop with a real reader link. Use when someone says "set up the beta reader", "install this", "deploy this", "get this running", or opens this repo wanting it working.
 ---
 
 # /setup-beta-reader
 
-Set up this app for the person in front of you. `AGENTS.md` in the repo root is the full
-playbook — **read it first**, then follow the flow below.
+Install this for the person running the session. `AGENTS.md` in the repo root is the full
+playbook — **read it first**, then work the steps below.
 
-## The one thing to get right
+## Posture
 
-The app already works with zero configuration. Opening `index.html` is a functioning
-beta reader. Your job is to find the smallest set of additions this person actually needs
-and do only those — not to build them a stack.
+They use agents. Don't tutorialise, don't offer an easy mode, don't ask permission per step.
+Install it, verify it, hand back the one loop. Ask only for the things you genuinely cannot do
+yourself: which notes repo, an API key, a GitHub token, a Cloudflare login.
 
-Never add a build step, a package manager, or a framework. The no-dependency shape is the
-product.
+## Hard rules
 
-## Flow
+- **No build step, no package manager, no framework, no dependencies.** That shape is the
+  product — it's why this still runs years from now unmaintained.
+- **Never take a raw key into your context.** Run the `wrangler secret put` command and let
+  them paste at the prompt. Never write a key to a file, never echo one back, never put one in
+  `config.json` — that file is served to every visitor.
 
-1. **Read `AGENTS.md`.** Everything below assumes it.
+## Steps
 
-2. **Ask what they need — one question at a time, not a list.** Start with:
-   *"Is this just for you, or are you sending it to other people to read?"*
-   Their answer decides whether hosting is even in scope. Then ask about voice quality,
-   then about how notes should come back. Stop asking as soon as you have enough.
+1. **Notes repo.** Ask which one, or offer to create it. Private is fine. You need `owner/repo`.
 
-3. **Do the minimum that answers those.** In practice that's usually:
-   - host the static file (GitHub Pages / Cloudflare Pages / Netlify), and
-   - write a `config.json` from `config.example.json`.
+2. **Worker.**
+   ```bash
+   cd worker && cp wrangler.example.toml wrangler.toml
+   ```
+   Set `NOTES_REPO`, `TTS_API_BASE`, `TTS_VOICE` in `[vars]`, then `npx wrangler deploy`.
+   Keep the URL.
 
-4. **Only deploy the Worker if they asked for better narration, transcription, or
-   auto-committed notes.** If you do:
-   - `cd worker && cp wrangler.example.toml wrangler.toml && npx wrangler deploy`
-   - Run `npx wrangler secret put TTS_API_KEY` and let *them* paste the key at the prompt.
-     Do not take a raw key into your context, do not write one to a file, do not echo one back.
-   - Set `NOTES_REPO` and `ALLOWED_ORIGINS` in `wrangler.toml`, then redeploy.
+3. **Secrets.** `TTS_API_KEY` (narration + speech-to-text), `GITHUB_TOKEN` (fine-grained PAT,
+   that repo only, Contents: Read and write), optionally `ACCESS_CODE`.
 
-5. **Verify against the checklist in `AGENTS.md` Step 5, and actually run it.** Load the app,
-   add the sample manuscript from `examples/`, press Play, save a note, download the `.md`.
-   Report what you observed. If something failed, say so and fix it — do not report a
-   checklist you didn't execute.
+4. **Host** the static file — GitHub Pages, Cloudflare Pages, or Netlify. No build command,
+   root is the site.
 
-6. **Sweep before you push.** No key in `config.json`, no committed `wrangler.toml`, no
+5. **Wire it:** `cp config.example.json config.json`, set `workerUrl` and
+   `"ttsProvider": "worker"`. Then tighten `ALLOWED_ORIGINS` in `wrangler.toml` to the real
+   site origin and redeploy.
+
+6. **Verify — run the checklist in AGENTS.md, don't just read it.** The one that proves the
+   whole system: build a reader link, open it in a private window, leave a note, send it,
+   confirm the branch and file appeared in the notes repo, then pull it back through
+   **Reader notes** in the app. If any step fails, say so and fix it.
+
+7. **Sweep before pushing.** No key in `config.json`, no committed `wrangler.toml`, no
    manuscript or reader notes that aren't theirs to publish.
 
-## Then hand them the loop
+## Hand back
 
-Close by telling them, in two lines, how they actually use it:
+Two lines, nothing more:
 
-> Put your manuscript somewhere with a public URL → in the app, pick the book →
-> **Invite a reader** → send the link. They listen, they talk, you get a Markdown file
-> with every note pinned to its passage.
-
-If they want notes applied back to the manuscript afterwards, read `NOTES_FORMAT.md` — it
-documents the file and, importantly, says to match on the **quoted passage** rather than
-trusting the passage number, since indices shift the moment the manuscript is edited.
+> Manuscript at a public URL → **Invite a reader** → send the link. They listen and talk;
+> notes file themselves into `<repo>`, one branch per reader.
+> When you want them: the book → **Reader notes** → **Download consolidated .md**, or run
+> `/beta-feedback`.
