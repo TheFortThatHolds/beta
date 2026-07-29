@@ -216,6 +216,20 @@ shift the moment the manuscript is edited; the quote still finds its place.
 
 ---
 
+## Tests
+
+```bash
+node test/run.mjs
+```
+
+No install, no framework, no network, no browser — it loads the app's `<script>` and the
+Worker into a sandbox and exercises the logic that a click-through wouldn't catch: the
+manuscript parser, Markdown stripping, sentence chunking, the full export → reparse →
+collate round trip (including a reader with two appended sessions), and every Worker route
+and guard against a fixtured GitHub API.
+
+**Run it after touching `index.html` or `worker/worker.js`.** A red result is real.
+
 ## Modifying the code
 
 - `index.html` is the whole app — HTML, one `<style>`, one `<script>`. Sections carry `══`

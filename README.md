@@ -86,6 +86,7 @@ AGENTS.md                       the setup playbook
 NOTES_FORMAT.md                 the review + consolidated file formats
 .claude/skills/                 /setup-beta-reader · /beta-feedback
 examples/                       a sample manuscript to test on
+test/run.mjs                    `node test/run.mjs` — no install, no network
 ```
 
 ## License
