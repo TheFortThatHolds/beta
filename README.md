@@ -96,9 +96,15 @@ The repository above is the whole tool and it is free, forever. What it doesn't 
 the dead ends — written to be handed straight to your own agent so it can build you the same
 thing, shaped for you, without you reverse-engineering anyone's source.
 
-That document is the [Beta Reader Selfware Seed — $9.99](https://buy.stripe.com/9B63co9u8aNE4hGceSew81j).
-Buying it is optional and changes nothing about the license below. It's the tip jar with
-instructions in it.
+That document is the **Beta Reader Selfware Seed**, and you can
+[read the whole thing free](https://papers.thefortthatholds.com/selfware/beta-reader-selfware-seed).
+No email, no gate. It's published in full as the worked example inside
+[Selfware](https://papers.thefortthatholds.com/selfware), the paper that argues why the route
+is now the artifact and the program isn't.
+
+There's also a [$9.99 copy in the store](https://buy.stripe.com/9B63co9u8aNE4hGceSew81j) — same
+document, nothing withheld. That one is a tip jar with instructions in it, for anyone who reads
+the free version and wants the work to keep happening. Neither one changes the license below.
 
 ## License
 
