@@ -89,6 +89,17 @@ examples/                       a sample manuscript to test on
 test/run.mjs                    `node test/run.mjs` — no install, no network
 ```
 
+## The seed — if you'd rather not read the code
+
+The repository above is the whole tool and it is free, forever. What it doesn't contain is the
+*route*: the record of how this got built, in the order it got built, with the decisions and
+the dead ends — written to be handed straight to your own agent so it can build you the same
+thing, shaped for you, without you reverse-engineering anyone's source.
+
+That document is the [Beta Reader Selfware Seed — $9.99](https://buy.stripe.com/9B63co9u8aNE4hGceSew81j).
+Buying it is optional and changes nothing about the license below. It's the tip jar with
+instructions in it.
+
 ## License
 
 MIT. Fork it, rename it, sell the setup service, do what you like.
