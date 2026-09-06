@@ -8,6 +8,8 @@ your agent.**
 That's the loop. Written feedback is slow and vague so people don't give it; talking is fast
 so they do.
 
+**Live buy paths (today):** [Selfware Seed — $9.99](https://buy.stripe.com/9B63co9u8aNE4hGceSew81j) · [Beta Reader Pass — $50 / 14 days or $75 / 30 days](https://thefortthatholds.xyz/braided-ink-beta-pass)
+
 ## This is an agent-installed tool
 
 There's no wizard and no hosted signup. You point a coding agent at this repo and it stands
@@ -88,6 +90,36 @@ NOTES_FORMAT.md                 the review + consolidated file formats
 examples/                       a sample manuscript to test on
 test/run.mjs                    `node test/run.mjs` — no install, no network
 ```
+
+## The seed — if you'd rather not read the code
+
+The repository above is the whole tool and it is free, forever. What it doesn't contain is the
+*route*: the record of how this got built, in the order it got built, with the decisions and
+the dead ends — written to be handed straight to your own agent so it can build you the same
+thing, shaped for you, without you reverse-engineering anyone's source.
+
+That document is the **Beta Reader Selfware Seed**, and you can
+[read the whole thing free](https://papers.thefortthatholds.com/selfware/beta-reader-selfware-seed).
+No email, no gate. It's published in full as the worked example inside
+[Selfware](https://papers.thefortthatholds.com/selfware), the paper that argues why the route
+is now the artifact and the program isn't.
+
+There's also a [$9.99 copy in the store](https://buy.stripe.com/9B63co9u8aNE4hGceSew81j) — same
+document, nothing withheld. That one is a tip jar with instructions in it, for anyone who reads
+the free version and wants the work to keep happening. Neither one changes the license below.
+
+## Hosted Beta Reader Pass
+
+This repository is the free install. If you want Braided Ink to run the hosted
+reader loop for you instead — TTS playback, Whisper voice notes, automatic
+delivery, up to 5 readers — the live pass page is
+[Beta Reader Pass](https://thefortthatholds.xyz/braided-ink-beta-pass):
+
+- **14-Day Starter Pass — $50**
+- **30-Day Full Pass — $75**
+
+Same page, two options. Checkout lives there. This does not change the MIT
+license on the code above.
 
 ## License
 
